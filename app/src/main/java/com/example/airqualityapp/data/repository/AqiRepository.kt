@@ -1,5 +1,6 @@
 package com.example.airqualityapp.data.repository
 
+import android.util.Log
 import com.example.airqualityapp.data.local.dao.AqiDao
 import com.example.airqualityapp.data.local.entity.AqiReadingEntity
 import com.example.airqualityapp.data.remote.NetworkModule
@@ -7,47 +8,100 @@ import kotlinx.coroutines.flow.Flow
 
 class AqiRepository(private val aqiDao: AqiDao) {
 
-    // API Keys - Replace with your own keys
     companion object {
-        const val AQICN_TOKEN = "demo" // Replace with your AQICN API token
-        const val OPENWEATHER_KEY = "demo" // Replace with your OpenWeatherMap API key
+        private const val TAG = "AqiRepository"
+
+        // OpenWeatherMap FREE API key
+        // Provides: Air Pollution (PM2.5, PM10, CO, NO2, SO2, O3) + Weather + Geocoding
+        // Free tier: 1,000 calls/day — more than enough
+        const val OPENWEATHER_KEY = "ddb18440bce8b28c52566841ddbe9c21"
     }
 
-    // Fetch AQI from AQICN API and save to local DB
+    /**
+     * Fetch AQI data using OpenWeatherMap (100% free).
+     * Flow: City name → Geocode to lat/lon → Air Pollution API + Weather API → Calculate EPA AQI
+     */
     suspend fun fetchAndSaveAqi(city: String): Result<AqiReadingEntity> {
         return try {
-            val aqicnResponse = NetworkModule.aqicnApi.getAqiByCity(city, AQICN_TOKEN)
+            Log.d(TAG, "Fetching AQI for: $city")
+
+            // Step 1: Convert city name to coordinates
+            val geoResponse = NetworkModule.openWeatherApi.geocodeCity(city, 1, OPENWEATHER_KEY)
+            if (geoResponse.isEmpty() || geoResponse[0].lat == null) {
+                return Result.failure(Exception("City '$city' not found. Check city name."))
+            }
+            val lat = geoResponse[0].lat!!
+            val lon = geoResponse[0].lon!!
+            Log.d(TAG, "Geocoded $city → lat=$lat, lon=$lon")
+
+            // Step 2: Fetch Air Pollution data (PM2.5, PM10, CO, NO2, SO2, O3)
+            val pollutionResponse = NetworkModule.openWeatherApi.getAirPollution(lat, lon, OPENWEATHER_KEY)
+            val pollution = pollutionResponse.list?.firstOrNull()
+            val components = pollution?.components
+
+            if (components == null) {
+                return Result.failure(Exception("No air pollution data available for $city"))
+            }
+
+            // Step 3: Fetch Weather data (temperature, humidity, wind speed)
             val weatherResponse = try {
                 NetworkModule.openWeatherApi.getCurrentWeather(city, OPENWEATHER_KEY)
             } catch (e: Exception) {
+                Log.w(TAG, "Weather fetch failed, using defaults", e)
                 null
             }
 
-            if (aqicnResponse.status == "ok" && aqicnResponse.data != null) {
-                val data = aqicnResponse.data
-                val reading = AqiReadingEntity(
-                    aqi = data.aqi ?: 0,
-                    pm25 = data.iaqi?.pm25?.value ?: 0.0,
-                    pm10 = data.iaqi?.pm10?.value ?: 0.0,
-                    temperature = weatherResponse?.main?.temp ?: data.iaqi?.temperature?.value ?: 0.0,
-                    humidity = weatherResponse?.main?.humidity ?: data.iaqi?.humidity?.value ?: 0.0,
-                    windSpeed = weatherResponse?.wind?.speed ?: data.iaqi?.windSpeed?.value ?: 0.0,
-                    city = data.city?.name ?: city,
-                    source = "api",
-                    timestamp = System.currentTimeMillis(),
-                    synced = true
-                )
-                aqiDao.insert(reading)
-                Result.success(reading)
-            } else {
-                Result.failure(Exception("Failed to fetch AQI data"))
-            }
+            // Step 4: Calculate US EPA AQI from PM2.5 concentration
+            val pm25 = components.pm25 ?: 0.0
+            val pm10 = components.pm10 ?: 0.0
+            val calculatedAqi = calculateAqiFromPm25(pm25)
+
+            val reading = AqiReadingEntity(
+                aqi = calculatedAqi,
+                pm25 = pm25,
+                pm10 = pm10,
+                temperature = weatherResponse?.main?.temp ?: 0.0,
+                humidity = weatherResponse?.main?.humidity ?: 0.0,
+                windSpeed = weatherResponse?.wind?.speed ?: 0.0,
+                city = geoResponse[0].name ?: city,
+                source = "api",
+                timestamp = System.currentTimeMillis(),
+                synced = true
+            )
+
+            aqiDao.insert(reading)
+            Log.d(TAG, "✅ ${reading.city} — AQI=${reading.aqi}, PM2.5=${reading.pm25}, Temp=${reading.temperature}°C")
+            Result.success(reading)
+
         } catch (e: Exception) {
-            Result.failure(e)
+            Log.e(TAG, "❌ Failed to fetch AQI for $city: ${e.message}", e)
+            Result.failure(Exception("Failed to fetch AQI for $city. Check your internet connection."))
         }
     }
 
-    // Get latest reading from local DB
+    /**
+     * Calculate US EPA AQI from PM2.5 concentration (μg/m³).
+     * Uses official EPA breakpoints.
+     * Reference: https://www.airnow.gov/aqi/aqi-basics/
+     */
+    private fun calculateAqiFromPm25(pm25: Double): Int {
+        return when {
+            pm25 <= 12.0   -> linearScale(pm25, 0.0, 12.0, 0, 50)
+            pm25 <= 35.4   -> linearScale(pm25, 12.1, 35.4, 51, 100)
+            pm25 <= 55.4   -> linearScale(pm25, 35.5, 55.4, 101, 150)
+            pm25 <= 150.4  -> linearScale(pm25, 55.5, 150.4, 151, 200)
+            pm25 <= 250.4  -> linearScale(pm25, 150.5, 250.4, 201, 300)
+            pm25 <= 500.4  -> linearScale(pm25, 250.5, 500.4, 301, 500)
+            else           -> 500
+        }
+    }
+
+    private fun linearScale(value: Double, cLow: Double, cHigh: Double, iLow: Int, iHigh: Int): Int {
+        return ((iHigh - iLow).toDouble() / (cHigh - cLow) * (value - cLow) + iLow).toInt()
+    }
+
+    // ── Local DB queries ──────────────────────────────────────────
+
     suspend fun getLatestReading(): AqiReadingEntity? = aqiDao.getLatestReading()
 
     fun getLatestReadingFlow(): Flow<AqiReadingEntity?> = aqiDao.getLatestReadingFlow()
@@ -68,4 +122,3 @@ class AqiRepository(private val aqiDao: AqiDao) {
 
     suspend fun markAsSynced(ids: List<Long>) = aqiDao.markAsSynced(ids)
 }
-

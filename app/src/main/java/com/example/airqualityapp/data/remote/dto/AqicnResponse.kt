@@ -3,6 +3,10 @@ package com.example.airqualityapp.data.remote.dto
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
+// Note: When AQICN returns an error, "data" is a String like "Invalid key"
+// instead of an object. We use a separate response class to handle this.
+// The repository catches the Moshi parse error gracefully.
+
 @JsonClass(generateAdapter = true)
 data class AqicnResponse(
     @Json(name = "status") val status: String?,

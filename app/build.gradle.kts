@@ -7,12 +7,12 @@ plugins {
 
 android {
     namespace = "com.example.airqualityapp"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.airqualityapp"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
@@ -60,6 +60,7 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.messaging)
+    implementation(libs.firebase.database)
 
     // Credentials / Google Sign-In
     implementation(libs.androidx.credentials)

@@ -1,0 +1,50 @@
+{
+  "rules": {
+    "live_aqi": {
+      ".read": "auth != null",
+      "$city": {
+        ".write": "auth != null",
+        ".validate": "newData.hasChildren(['aqi', 'city', 'timestamp'])",
+        "aqi": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 999" },
+        "pm25": { ".validate": "newData.isNumber()" },
+        "pm10": { ".validate": "newData.isNumber()" },
+        "temperature": { ".validate": "newData.isNumber()" },
+        "humidity": { ".validate": "newData.isNumber()" },
+        "windSpeed": { ".validate": "newData.isNumber()" },
+        "city": { ".validate": "newData.isString()" },
+        "category": { ".validate": "newData.isString()" },
+        "source": { ".validate": "newData.isString()" },
+        "timestamp": { ".validate": "newData.isNumber()" }
+      }
+    },
+    "aqi_history": {
+      ".read": "auth != null",
+      "$city": {
+        ".write": "auth != null",
+        ".indexOn": ["timestamp"],
+        "$readingId": {
+          ".validate": "newData.hasChildren(['aqi', 'timestamp'])"
+        }
+      }
+    },
+    "alerts": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["active", "timestamp"],
+      "$alertId": {
+        ".validate": "newData.hasChildren(['city', 'aqi', 'message', 'timestamp'])"
+      }
+    },
+    "user_settings": {
+      "$userId": {
+        ".read": "auth != null && auth.uid === $userId",
+        ".write": "auth != null && auth.uid === $userId",
+        ".validate": "newData.hasChildren(['alertThreshold'])",
+        "alertThreshold": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 500" },
+        "notificationsEnabled": { ".validate": "newData.isBoolean()" },
+        "preferredCity": { ".validate": "newData.isString()" }
+      }
+    }
+  }
+}
+

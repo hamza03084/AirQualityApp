@@ -1,0 +1,114 @@
+// ============================================================================
+//  Firestore Security Rules for AirQualityApp
+// ============================================================================
+//
+//  HOW TO DEPLOY:
+//  1. Go to Firebase Console → Firestore Database → Rules tab
+//  2. Paste these rules
+//  3. Click "Publish"
+//
+//  Alternatively, use Firebase CLI:
+//    firebase deploy --only firestore:rules
+//
+// ============================================================================
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper Functions ──────────────────────────────────────────────
+
+    // Check if the request is from an authenticated user
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if the authenticated user is the document owner
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Check if the user has admin role
+    // (reads the user's profile doc to verify their role)
+    function isAdmin() {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+
+    // ── Users Collection ──────────────────────────────────────────────
+    // - Users can read/write their own profile
+    // - Admins can read all profiles
+    // - Only authenticated users can create their profile on signup
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ── AQI Readings Collection ───────────────────────────────────────
+    // - Any authenticated user can read AQI data
+    // - Any authenticated user can create readings (from API or manual)
+    // - Only admins can update or delete
+    match /aqi_readings/{readingId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    // ── Manual Submissions Collection ─────────────────────────────────
+    // - Users can read their own submissions
+    // - Users can create submissions
+    // - Admins can read all, update, delete
+    match /manual_submissions/{submissionId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    // ── Config Collection (Thresholds) ────────────────────────────────
+    // - Any authenticated user can read config
+    // - Only admins can write/update config
+    match /config/{configId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ── Recommendations Collection ────────────────────────────────────
+    // - Any authenticated user can read recommendations
+    // - Only admins can write/update recommendations
+    match /recommendations/{categoryId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ── Feedback Collection ───────────────────────────────────────────
+    // - Any authenticated user can create feedback
+    // - Users can read their own feedback
+    // - Admins can read all feedback
+    // - Only admins can delete
+    match /feedback/{feedbackId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ── AQI Datasets Collection (Admin-managed) ──────────────────────
+    // - Any authenticated user can read datasets
+    // - Only admins can create, update, delete
+    match /aqi_datasets/{datasetId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ── Default: Deny everything else ─────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

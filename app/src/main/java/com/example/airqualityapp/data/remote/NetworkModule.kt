@@ -1,6 +1,5 @@
 package com.example.airqualityapp.data.remote
 
-import com.example.airqualityapp.data.remote.api.AqicnApi
 import com.example.airqualityapp.data.remote.api.OpenWeatherApi
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -33,15 +32,6 @@ object NetworkModule {
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
             .create(OpenWeatherApi::class.java)
-    }
-
-    val aqicnApi: AqicnApi by lazy {
-        Retrofit.Builder()
-            .baseUrl(AqicnApi.BASE_URL)
-            .client(okHttpClient)
-            .addConverterFactory(MoshiConverterFactory.create(moshi))
-            .build()
-            .create(AqicnApi::class.java)
     }
 }
 

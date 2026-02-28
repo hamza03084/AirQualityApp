@@ -23,10 +23,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.airqualityapp.data.local.AppDatabase
 import com.example.airqualityapp.data.local.entity.AqiReadingEntity
+import com.example.airqualityapp.data.remote.RealtimeDatabaseHelper
 import com.example.airqualityapp.data.repository.AqiRepository
 import com.example.airqualityapp.ml.AqiPredictor
 import com.example.airqualityapp.util.AqiClassifier
@@ -57,16 +60,41 @@ fun CitizenHomeScreen(
 
     val userName = FirebaseAuth.getInstance().currentUser?.displayName ?: "User"
 
-    // Load data on first composition
-    LaunchedEffect(Unit) {
-        val latest = repository.getLatestReading()
-        if (latest != null) {
-            currentReading = latest
+    // Auto-fetch from API every time the city changes
+    LaunchedEffect(selectedCity) {
+        isRefreshing = true
+        errorMessage = ""
+        val result = repository.fetchAndSaveAqi(selectedCity)
+        result.onSuccess { reading ->
+            currentReading = reading
             predictedAqi = predictor.predict(
-                latest.pm25, latest.pm10,
-                latest.temperature, latest.humidity, latest.windSpeed
+                reading.pm25, reading.pm10,
+                reading.temperature, reading.humidity, reading.windSpeed
             )
+            // Push to Realtime Database for live sync across devices
+            val category = AqiClassifier.classify(reading.aqi)
+            val liveData = RealtimeDatabaseHelper.LiveAqiData(
+                aqi = reading.aqi,
+                pm25 = reading.pm25,
+                pm10 = reading.pm10,
+                temperature = reading.temperature,
+                humidity = reading.humidity,
+                windSpeed = reading.windSpeed,
+                city = reading.city,
+                category = category.label,
+                source = "api",
+                timestamp = reading.timestamp
+            )
+            RealtimeDatabaseHelper.writeLiveAqi(liveData)
+            RealtimeDatabaseHelper.pushAqiHistory(reading.city, liveData)
         }
+        result.onFailure {
+            errorMessage = it.message ?: "Failed to fetch data"
+            // Fall back to latest cached data
+            val latest = repository.getLatestReading()
+            if (latest != null) currentReading = latest
+        }
+        isRefreshing = false
     }
 
     fun refreshData() {
@@ -80,10 +108,25 @@ fun CitizenHomeScreen(
                     reading.pm25, reading.pm10,
                     reading.temperature, reading.humidity, reading.windSpeed
                 )
+                // Push to Realtime Database
+                val category = AqiClassifier.classify(reading.aqi)
+                val liveData = RealtimeDatabaseHelper.LiveAqiData(
+                    aqi = reading.aqi,
+                    pm25 = reading.pm25,
+                    pm10 = reading.pm10,
+                    temperature = reading.temperature,
+                    humidity = reading.humidity,
+                    windSpeed = reading.windSpeed,
+                    city = reading.city,
+                    category = category.label,
+                    source = "api",
+                    timestamp = reading.timestamp
+                )
+                RealtimeDatabaseHelper.writeLiveAqi(liveData)
+                RealtimeDatabaseHelper.pushAqiHistory(reading.city, liveData)
             }
             result.onFailure {
                 errorMessage = it.message ?: "Failed to fetch data"
-                // Fall back to latest cached data
                 val latest = repository.getLatestReading()
                 if (latest != null) currentReading = latest
             }
@@ -339,7 +382,10 @@ fun AqiGauge(aqi: Int, color: Color, category: String) {
             )
         }
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(horizontal = 30.dp)
+        ) {
             Text("AQI", fontSize = 14.sp, color = Color.Gray)
             Text(
                 text = "$aqi",
@@ -349,9 +395,12 @@ fun AqiGauge(aqi: Int, color: Color, category: String) {
             )
             Text(
                 text = category,
-                fontSize = 14.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
-                color = color
+                color = color,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

@@ -9,6 +9,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.airqualityapp.R
 import com.example.airqualityapp.data.local.AppDatabase
+import com.example.airqualityapp.data.remote.RealtimeDatabaseHelper
 import com.example.airqualityapp.data.repository.AqiRepository
 import com.example.airqualityapp.util.AqiClassifier
 
@@ -32,11 +33,38 @@ class AqiFetchWorker(
             val result = repository.fetchAndSaveAqi(city)
 
             result.onSuccess { reading ->
+                // Push to Realtime Database for live sync
+                val category = AqiClassifier.classify(reading.aqi)
+                val liveData = RealtimeDatabaseHelper.LiveAqiData(
+                    aqi = reading.aqi,
+                    pm25 = reading.pm25,
+                    pm10 = reading.pm10,
+                    temperature = reading.temperature,
+                    humidity = reading.humidity,
+                    windSpeed = reading.windSpeed,
+                    city = reading.city,
+                    category = category.label,
+                    source = "api",
+                    timestamp = reading.timestamp
+                )
+                RealtimeDatabaseHelper.writeLiveAqi(liveData)
+                RealtimeDatabaseHelper.pushAqiHistory(reading.city, liveData)
+
+                // Send alert if threshold crossed
                 if (reading.aqi > alertThreshold) {
-                    val category = AqiClassifier.classify(reading.aqi)
                     sendAlert(
                         "⚠️ AQI Alert: ${category.label}",
                         "Current AQI is ${reading.aqi} in ${reading.city}. ${category.recommendation}"
+                    )
+                    // Also create alert in Realtime Database
+                    RealtimeDatabaseHelper.createAlert(
+                        RealtimeDatabaseHelper.AqiAlert(
+                            city = reading.city,
+                            aqi = reading.aqi,
+                            category = category.label,
+                            message = "AQI is ${reading.aqi} — ${category.recommendation}",
+                            timestamp = System.currentTimeMillis()
+                        )
                     )
                 }
             }

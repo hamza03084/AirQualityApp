@@ -22,6 +22,7 @@ import com.example.airqualityapp.data.worker.SyncWorker
 import com.example.airqualityapp.navigation.AppNavGraph
 import com.example.airqualityapp.navigation.Screen
 import com.example.airqualityapp.ui.theme.AirQualityAppTheme
+import com.example.airqualityapp.data.remote.RealtimeDatabaseHelper
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.messaging.FirebaseMessaging
 import java.util.concurrent.TimeUnit
@@ -44,6 +45,9 @@ class MainActivity : ComponentActivity() {
 
         // Subscribe to FCM topic for AQI alerts
         FirebaseMessaging.getInstance().subscribeToTopic("aqi_alerts")
+
+        // Enable Realtime Database offline sync
+        RealtimeDatabaseHelper.enableOfflineSync()
 
         // Schedule periodic workers
         schedulePeriodicWorkers()
