@@ -6,6 +6,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
@@ -35,6 +36,9 @@ fun SettingsScreen(
     var alertThreshold by remember { mutableStateOf(150f) }
     var notificationsEnabled by remember { mutableStateOf(true) }
     var isSaving by remember { mutableStateOf(false) }
+    var isDeleting by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var deleteError by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         val profile = userRepository.getCurrentUserProfile()
@@ -54,6 +58,47 @@ fun SettingsScreen(
             )
         }
     ) { padding ->
+        // Delete confirmation dialog
+        if (showDeleteDialog) {
+            AlertDialog(
+                onDismissRequest = { showDeleteDialog = false },
+                title = { Text("Delete Profile", fontWeight = FontWeight.Bold) },
+                text = {
+                    Text(
+                        "Are you sure you want to permanently delete your account? " +
+                        "This action cannot be undone and all your data will be lost."
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showDeleteDialog = false
+                            isDeleting = true
+                            deleteError = ""
+                            scope.launch {
+                                try {
+                                    userRepository.deleteUserAccount()
+                                    isDeleting = false
+                                    onLogout()
+                                } catch (e: Exception) {
+                                    isDeleting = false
+                                    deleteError = e.message ?: "Failed to delete account. Please re-login and try again."
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB71C1C))
+                    ) {
+                        Text("Delete", color = Color.White)
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(onClick = { showDeleteDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -187,6 +232,40 @@ fun SettingsScreen(
             }
 
             Spacer(modifier = Modifier.height(24.dp))
+
+            // Delete Profile – citizens only
+            if (userProfile?.role == "citizen" || userProfile == null) {
+                if (deleteError.isNotEmpty()) {
+                    Text(
+                        text = deleteError,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+                Button(
+                    onClick = { showDeleteDialog = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(55.dp),
+                    enabled = !isDeleting,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB71C1C))
+                ) {
+                    if (isDeleting) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    } else {
+                        Icon(Icons.Default.Delete, contentDescription = null, tint = Color.White)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Delete My Profile", color = Color.White, fontSize = 16.sp)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             // Logout Button
             OutlinedButton(

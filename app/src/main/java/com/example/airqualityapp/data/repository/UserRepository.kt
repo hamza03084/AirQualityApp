@@ -28,7 +28,7 @@ class UserRepository {
         return try {
             val doc = usersCollection.document(uid).get().await()
             doc.toObject(UserProfile::class.java)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }
@@ -38,6 +38,7 @@ class UserRepository {
         return getUserProfile(uid)
     }
 
+    @Suppress("MemberVisibilityCanBePrivate", "unused")
     suspend fun updateUserRole(uid: String, role: String) {
         usersCollection.document(uid).update("role", role).await()
     }
@@ -46,6 +47,7 @@ class UserRepository {
         usersCollection.document(uid).update("alertThreshold", threshold).await()
     }
 
+    @Suppress("MemberVisibilityCanBePrivate", "unused")
     suspend fun updateFcmToken(uid: String, token: String) {
         usersCollection.document(uid).update("fcmToken", token).await()
     }
@@ -54,7 +56,7 @@ class UserRepository {
         return try {
             val snapshot = usersCollection.get().await()
             snapshot.toObjects(UserProfile::class.java)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             emptyList()
         }
     }
@@ -63,9 +65,20 @@ class UserRepository {
         return try {
             val snapshot = usersCollection.get().await()
             snapshot.size()
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             0
         }
     }
-}
 
+    /**
+     * Deletes the current user's Firestore profile document and their Firebase Auth account.
+     * Should only be called for citizens.
+     */
+    suspend fun deleteUserAccount() {
+        val user = auth.currentUser ?: throw Exception("No user logged in")
+        // Delete Firestore profile
+        usersCollection.document(user.uid).delete().await()
+        // Delete Firebase Auth account
+        user.delete().await()
+    }
+}

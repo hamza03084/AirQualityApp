@@ -23,6 +23,7 @@ import com.example.airqualityapp.data.repository.UserProfile
 import com.example.airqualityapp.data.repository.UserRepository
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -192,31 +193,32 @@ fun SignupScreen(
                 loading = true
                 errorMessage = ""
 
-                auth.createUserWithEmailAndPassword(email, password)
-                    .addOnSuccessListener { authResult ->
-                        scope.launch {
-                            try {
-                                val uid = authResult.user?.uid ?: ""
-                                val profile = UserProfile(
-                                    uid = uid,
-                                    email = email,
-                                    name = name,
-                                    role = selectedRole
-                                )
-                                userRepository.createUserProfile(profile)
-                                loading = false
-                                Toast.makeText(context, "Account Created!", Toast.LENGTH_SHORT).show()
-                                onSignupSuccess(selectedRole)
-                            } catch (e: Exception) {
-                                loading = false
-                                errorMessage = e.message ?: "Failed to create profile"
-                            }
+                scope.launch {
+                    try {
+                        val authResult = auth.createUserWithEmailAndPassword(email, password).await()
+                        val uid = authResult.user?.uid ?: ""
+                        val profile = UserProfile(
+                            uid = uid,
+                            email = email,
+                            name = name,
+                            role = selectedRole
+                        )
+                        userRepository.createUserProfile(profile)
+                        loading = false
+                        Toast.makeText(context, "Account Created!", Toast.LENGTH_SHORT).show()
+                        onSignupSuccess(selectedRole)
+                    } catch (e: Exception) {
+                        loading = false
+                        errorMessage = when {
+                            e.message?.contains("email address is already in use", ignoreCase = true) == true ||
+                            e.message?.contains("ERROR_EMAIL_ALREADY_IN_USE", ignoreCase = true) == true ->
+                                "This email is already registered. Please login instead."
+                            e.message?.contains("badly formatted", ignoreCase = true) == true ->
+                                "Invalid email address format."
+                            else -> e.message ?: "Sign up failed. Please try again."
                         }
                     }
-                    .addOnFailureListener {
-                        loading = false
-                        errorMessage = it.message ?: "Sign up failed"
-                    }
+                }
             },
             modifier = Modifier
                 .fillMaxWidth()
