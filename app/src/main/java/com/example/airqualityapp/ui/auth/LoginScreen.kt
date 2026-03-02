@@ -22,6 +22,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialException
 import com.example.airqualityapp.R
@@ -32,6 +33,7 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,6 +49,7 @@ fun LoginScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
+    var googleLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
 
@@ -164,7 +167,7 @@ fun LoginScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(55.dp),
-            enabled = !loading
+            enabled = !loading && !googleLoading
         ) {
             if (loading)
                 CircularProgressIndicator(
@@ -181,14 +184,14 @@ fun LoginScreen(
         OutlinedButton(
             onClick = {
                 scope.launch {
-                    loading = true
+                    googleLoading = true
                     doGoogleLogin(context, auth, userRepository, webClientId,
                         onSuccess = { role ->
-                            loading = false
+                            googleLoading = false
                             onLoginSuccess(role)
                         },
                         onError = { error ->
-                            loading = false
+                            googleLoading = false
                             errorMessage = error
                         }
                     )
@@ -197,9 +200,14 @@ fun LoginScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(55.dp),
-            enabled = !loading
+            enabled = !loading && !googleLoading
         ) {
-            Text("Login with Google")
+            if (googleLoading)
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp)
+                )
+            else
+                Text("Login with Google")
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -227,7 +235,8 @@ private suspend fun doGoogleLogin(
     val googleIdOption: GetGoogleIdOption = GetGoogleIdOption.Builder()
         .setFilterByAuthorizedAccounts(false)
         .setServerClientId(webClientId)
-        .setAutoSelectEnabled(true)
+        .setAutoSelectEnabled(false)
+        .setNonce(null)
         .build()
 
     val request = GetCredentialRequest.Builder()
@@ -241,31 +250,43 @@ private suspend fun doGoogleLogin(
         )
         val credential = result.credential
 
-        if (credential is GoogleIdTokenCredential) {
-            val googleIdToken = credential.idToken
-            val firebaseCredential = GoogleAuthProvider.getCredential(googleIdToken, null)
-            auth.signInWithCredential(firebaseCredential)
-                .addOnSuccessListener { authResult ->
-                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                        val uid = authResult.user?.uid ?: ""
-                        var profile = userRepository.getUserProfile(uid)
-                        if (profile == null) {
-                            // First time Google login - create profile as citizen
-                            profile = UserProfile(
-                                uid = uid,
-                                email = authResult.user?.email ?: "",
-                                name = authResult.user?.displayName ?: "",
-                                role = "citizen"
-                            )
-                            userRepository.createUserProfile(profile)
-                        }
-                        onSuccess(profile.role)
-                    }
-                }
-                .addOnFailureListener {
-                    onError(it.message ?: "Firebase authentication failed")
-                }
+        // Extract Google ID token from credential
+        val googleIdToken: String? = when {
+            credential is CustomCredential &&
+                credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL -> {
+                GoogleIdTokenCredential.createFrom(credential.data).idToken
+            }
+            credential is GoogleIdTokenCredential -> {
+                credential.idToken
+            }
+            else -> null
         }
+
+        if (googleIdToken == null) {
+            onError("Unexpected credential type: ${credential.type}")
+            return
+        }
+
+        // Sign in to Firebase using suspend/await (runs on caller's coroutine context)
+        val firebaseCredential = GoogleAuthProvider.getCredential(googleIdToken, null)
+        val authResult = auth.signInWithCredential(firebaseCredential).await()
+
+        // Fetch or create user profile
+        val uid = authResult.user?.uid ?: ""
+        var profile = userRepository.getUserProfile(uid)
+        if (profile == null) {
+            profile = UserProfile(
+                uid = uid,
+                email = authResult.user?.email ?: "",
+                name = authResult.user?.displayName ?: "",
+                role = "citizen"
+            )
+            userRepository.createUserProfile(profile)
+        }
+
+        // onSuccess is now called on the main thread (caller's coroutine scope)
+        onSuccess(profile.role)
+
     } catch (e: GetCredentialException) {
         onError(e.message ?: "Google login failed")
     } catch (e: Exception) {
