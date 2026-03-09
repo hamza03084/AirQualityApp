@@ -68,6 +68,7 @@ fun AppNavGraph(
                 onNavigateToManualInput = { navController.navigate(Screen.ManualInput.route) },
                 onNavigateToHelp = { navController.navigate(Screen.Help.route) },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                onNavigateToProfile = { navController.navigate(Screen.CitizenProfile.route) },
                 onLogout = {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(0) { inclusive = true }
@@ -104,6 +105,12 @@ fun AppNavGraph(
                         popUpTo(0) { inclusive = true }
                     }
                 }
+            )
+        }
+
+        composable(Screen.CitizenProfile.route) {
+            CitizenProfileScreen(
+                onBack = { navController.popBackStack() }
             )
         }
 

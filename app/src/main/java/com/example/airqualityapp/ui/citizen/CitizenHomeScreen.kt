@@ -44,6 +44,7 @@ fun CitizenHomeScreen(
     onNavigateToManualInput: () -> Unit,
     onNavigateToHelp: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    onNavigateToProfile: () -> Unit,
     onLogout: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -178,6 +179,12 @@ fun CitizenHomeScreen(
                     label = { Text("Help") },
                     selected = selectedNavItem == 3,
                     onClick = { onNavigateToHelp() }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Person, contentDescription = "Profile") },
+                    label = { Text("Profile") },
+                    selected = selectedNavItem == 4,
+                    onClick = { onNavigateToProfile() }
                 )
             }
         }

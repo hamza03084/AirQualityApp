@@ -8,6 +8,9 @@ data class UserProfile(
     val uid: String = "",
     val email: String = "",
     val name: String = "",
+    val age: Int = 0,
+    val gender: String = "",
+    val phone: String = "",
     val role: String = "citizen", // "citizen" or "admin"
     val fcmToken: String = "",
     val alertThreshold: Int = 150,
@@ -45,6 +48,17 @@ class UserRepository {
 
     suspend fun updateAlertThreshold(uid: String, threshold: Int) {
         usersCollection.document(uid).update("alertThreshold", threshold).await()
+    }
+
+    suspend fun updateUserProfile(uid: String, name: String, age: Int, gender: String, phone: String) {
+        usersCollection.document(uid).update(
+            mapOf(
+                "name" to name,
+                "age" to age,
+                "gender" to gender,
+                "phone" to phone
+            )
+        ).await()
     }
 
     @Suppress("MemberVisibilityCanBePrivate", "unused")
