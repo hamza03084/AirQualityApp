@@ -113,7 +113,6 @@ class MainActivity : ComponentActivity() {
 
         val fetchRequest = PeriodicWorkRequestBuilder<AqiFetchWorker>(60, TimeUnit.MINUTES)
             .setConstraints(fetchConstraints)
-            .setInputData(workDataOf("city" to "Lahore", "threshold" to 150))
             .build()
 
         workManager.enqueueUniquePeriodicWork(

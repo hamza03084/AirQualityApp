@@ -122,11 +122,18 @@ fun AppNavGraph(
                 onNavigateToRecommendations = { navController.navigate(Screen.AdminRecommendations.route) },
                 onNavigateToDatasets = { navController.navigate(Screen.AdminDatasets.route) },
                 onNavigateToFeedback = { navController.navigate(Screen.AdminFeedback.route) },
+                onNavigateToActivity = { navController.navigate(Screen.AdminActivity.route) },
                 onLogout = {
                     navController.navigate(Screen.Login.route) {
                         popUpTo(0) { inclusive = true }
                     }
                 }
+            )
+        }
+
+        composable(Screen.AdminActivity.route) {
+            AdminActivityScreen(
+                onBack = { navController.popBackStack() }
             )
         }
 

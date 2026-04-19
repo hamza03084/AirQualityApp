@@ -32,8 +32,10 @@ import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeout
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -151,12 +153,20 @@ fun LoginScreen(
 
                 scope.launch {
                     try {
-                        auth.signInWithEmailAndPassword(email.trim(), password).await()
-                        val profile = userRepository.getOrCreateCurrentUserProfile()
-                            ?: error("Signed in, but Firebase session is not ready yet.")
-                        val role = profile.role.ifBlank { "citizen" }
-                        Toast.makeText(context, "Login Successful", Toast.LENGTH_SHORT).show()
-                        onLoginSuccess(role)
+                        withTimeout(15_000) {
+                            val result = auth.signInWithEmailAndPassword(email.trim(), password).await()
+                            // Force-refresh ID token so Firestore SDK picks up fresh auth state
+                            // after a prior logout in the same process — otherwise the next
+                            // Firestore read can hang indefinitely.
+                            result.user?.getIdToken(true)?.await()
+                            val profile = userRepository.getOrCreateCurrentUserProfile()
+                                ?: error("Signed in, but Firebase session is not ready yet.")
+                            val role = profile.role.ifBlank { "citizen" }
+                            Toast.makeText(context, "Login Successful", Toast.LENGTH_SHORT).show()
+                            onLoginSuccess(role)
+                        }
+                    } catch (_: TimeoutCancellationException) {
+                        errorMessage = "Login timed out. Please check your internet and try again."
                     } catch (e: Exception) {
                         errorMessage = e.toAuthErrorMessage("Login failed")
                     } finally {
@@ -270,7 +280,9 @@ private suspend fun doGoogleLogin(
         // Sign in to Firebase using suspend/await (runs on caller's coroutine context)
         val firebaseCredential = GoogleAuthProvider.getCredential(googleIdToken, null)
         val authResult = auth.signInWithCredential(firebaseCredential).await()
-        authResult.user?.getIdToken(false)?.await()
+        // Force-refresh so Firestore SDK picks up fresh auth state (avoids hang after
+        // prior logout in same process).
+        authResult.user?.getIdToken(true)?.await()
 
         val profile = userRepository.getOrCreateCurrentUserProfile(defaultRole = "citizen")
             ?: error("Signed in, but Firebase session is not ready yet.")

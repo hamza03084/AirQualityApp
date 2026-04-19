@@ -22,8 +22,10 @@ import androidx.compose.ui.unit.sp
 import com.example.airqualityapp.data.repository.UserProfile
 import com.example.airqualityapp.data.repository.UserRepository
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeout
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -164,23 +166,26 @@ fun SignupScreen(
 
                 scope.launch {
                     try {
-                        val trimmedEmail = email.trim()
-                        val trimmedName = name.trim()
-                        val authResult = auth.createUserWithEmailAndPassword(trimmedEmail, password).await()
-                        authResult.user?.getIdToken(false)?.await()
-                        val uid = authResult.user?.uid ?: ""
-                        val profile = UserProfile(
-                            uid = uid,
-                            email = trimmedEmail,
-                            name = trimmedName,
-                            role = "citizen"
-                        )
-                        userRepository.createUserProfile(profile)
-                        loading = false
-                        Toast.makeText(context, "Account Created!", Toast.LENGTH_SHORT).show()
-                        onSignupSuccess("citizen")
+                        withTimeout(15_000) {
+                            val trimmedEmail = email.trim()
+                            val trimmedName = name.trim()
+                            val authResult = auth.createUserWithEmailAndPassword(trimmedEmail, password).await()
+                            // Force-refresh so Firestore picks up fresh auth state
+                            authResult.user?.getIdToken(true)?.await()
+                            val uid = authResult.user?.uid ?: ""
+                            val profile = UserProfile(
+                                uid = uid,
+                                email = trimmedEmail,
+                                name = trimmedName,
+                                role = "citizen"
+                            )
+                            userRepository.createUserProfile(profile)
+                            Toast.makeText(context, "Account Created!", Toast.LENGTH_SHORT).show()
+                            onSignupSuccess("citizen")
+                        }
+                    } catch (_: TimeoutCancellationException) {
+                        errorMessage = "Signup timed out. Please check your internet and try again."
                     } catch (e: Exception) {
-                        loading = false
                         errorMessage = when {
                             e.message?.contains("email address is already in use", ignoreCase = true) == true ||
                             e.message?.contains("ERROR_EMAIL_ALREADY_IN_USE", ignoreCase = true) == true ->
@@ -189,6 +194,8 @@ fun SignupScreen(
                                 "Invalid email address format."
                             else -> e.message ?: "Sign up failed. Please try again."
                         }
+                    } finally {
+                        loading = false
                     }
                 }
             },

@@ -94,6 +94,26 @@ fun HelpScreen(onBack: () -> Unit) {
 
             Spacer(modifier = Modifier.height(20.dp))
 
+            // How to Use This App
+            Text("🧭 How to Use This App", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    TutorialStep("1", "Sign in", "Register or log in with email/password or Google.")
+                    TutorialStep("2", "View live AQI", "The Home screen auto-fetches AQI for your selected city every 60 minutes.")
+                    TutorialStep("3", "Manual prediction", "Tap Manual Input to enter PM2.5, PM10, temperature, humidity and wind speed — the on-device ML model returns an instant AQI even offline.")
+                    TutorialStep("4", "Review history", "Open History to browse Today / Week / Month trends with a visual chart.")
+                    TutorialStep("5", "Configure alerts", "In Settings, set your Preferred City and alert threshold. You'll get a push notification when AQI exceeds it.")
+                    TutorialStep("6", "Help & feedback", "Read the AQI guide and FAQs below, or send feedback if you hit an issue.")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
             // FAQs
             Text("❓ Frequently Asked Questions", fontWeight = FontWeight.Bold, fontSize = 20.sp)
             Spacer(modifier = Modifier.height(8.dp))
@@ -279,6 +299,31 @@ fun FaqItem(question: String, answer: String) {
                     Text(answer, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun TutorialStep(number: String, title: String, description: String) {
+    Row(
+        modifier = Modifier.padding(vertical = 6.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(
+            modifier = Modifier.size(28.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                number,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 16.sp
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+            Text(description, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
         }
     }
 }

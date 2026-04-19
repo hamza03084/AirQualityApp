@@ -2,6 +2,7 @@ package com.example.airqualityapp.data.repository
 
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.firestore.AggregateSource
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
@@ -16,6 +17,8 @@ data class UserProfile(
     val role: String = "citizen", // "citizen" or "admin"
     val fcmToken: String = "",
     val alertThreshold: Int = 150,
+    val notificationsEnabled: Boolean = true,
+    val preferredCity: String = "Lahore",
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -66,6 +69,22 @@ class UserRepository {
             .await()
     }
 
+    suspend fun updatePreferences(
+        uid: String,
+        threshold: Int,
+        notificationsEnabled: Boolean,
+        preferredCity: String
+    ) {
+        usersCollection.document(uid).set(
+            mapOf(
+                "alertThreshold" to threshold,
+                "notificationsEnabled" to notificationsEnabled,
+                "preferredCity" to preferredCity
+            ),
+            SetOptions.merge()
+        ).await()
+    }
+
     suspend fun updateUserProfile(uid: String, name: String, age: Int, gender: String, phone: String) {
         usersCollection.document(uid).set(
             mapOf(
@@ -108,8 +127,12 @@ class UserRepository {
 
     suspend fun getUserCount(): Int {
         return try {
-            val snapshot = usersCollection.get().await()
-            snapshot.size()
+            val snapshot = usersCollection
+                .whereEqualTo("role", "citizen")
+                .count()
+                .get(AggregateSource.SERVER)
+                .await()
+            snapshot.count.toInt()
         } catch (_: Exception) {
             0
         }

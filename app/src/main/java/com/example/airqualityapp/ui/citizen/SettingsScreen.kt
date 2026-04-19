@@ -6,8 +6,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.LocationCity
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
@@ -15,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,11 +33,20 @@ fun SettingsScreen(
     onLogout: () -> Unit
 ) {
     val auth = FirebaseAuth.getInstance()
+    val context = LocalContext.current
     val userRepository = remember { UserRepository() }
     val scope = rememberCoroutineScope()
+    val trainedCities = remember {
+        runCatching {
+            context.assets.open("model_cities.txt").bufferedReader().use { it.readText() }
+                .lines().map { it.trim() }.filter { it.isNotEmpty() }
+        }.getOrDefault(emptyList())
+    }
     var userProfile by remember { mutableStateOf<UserProfile?>(null) }
     var alertThreshold by remember { mutableStateOf(150f) }
     var notificationsEnabled by remember { mutableStateOf(true) }
+    var preferredCity by remember { mutableStateOf("Lahore") }
+    var cityMenuExpanded by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
     var isDeleting by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -44,6 +56,8 @@ fun SettingsScreen(
         val profile = userRepository.getCurrentUserProfile()
         userProfile = profile
         alertThreshold = (profile?.alertThreshold ?: 150).toFloat()
+        notificationsEnabled = profile?.notificationsEnabled ?: true
+        preferredCity = profile?.preferredCity?.takeIf { it.isNotBlank() } ?: "Lahore"
     }
 
     Scaffold(
@@ -192,7 +206,49 @@ fun SettingsScreen(
                         steps = 5
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text("Preferred City", fontWeight = FontWeight.Medium)
+                    Text(
+                        "Background AQI fetches use this city",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    val cityOptions = trainedCities.ifEmpty {
+                        listOf("Islamabad", "Karachi", "Lahore", "Peshawar", "Quetta")
+                    }
+                    ExposedDropdownMenuBox(
+                        expanded = cityMenuExpanded,
+                        onExpandedChange = { cityMenuExpanded = !cityMenuExpanded }
+                    ) {
+                        OutlinedTextField(
+                            value = preferredCity,
+                            onValueChange = {},
+                            readOnly = true,
+                            leadingIcon = { Icon(Icons.Default.LocationCity, contentDescription = null) },
+                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = cityMenuExpanded,
+                            onDismissRequest = { cityMenuExpanded = false }
+                        ) {
+                            cityOptions.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option) },
+                                    onClick = {
+                                        preferredCity = option
+                                        cityMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     Button(
                         onClick = {
@@ -200,7 +256,12 @@ fun SettingsScreen(
                                 isSaving = true
                                 val uid = auth.currentUser?.uid ?: ""
                                 if (uid.isNotEmpty()) {
-                                    userRepository.updateAlertThreshold(uid, alertThreshold.toInt())
+                                    userRepository.updatePreferences(
+                                        uid,
+                                        alertThreshold.toInt(),
+                                        notificationsEnabled,
+                                        preferredCity
+                                    )
                                 }
                                 isSaving = false
                             }
@@ -235,6 +296,14 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.Gray
                     )
+                    if (trainedCities.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Trained on: ${trainedCities.joinToString(", ")}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray
+                        )
+                    }
                 }
             }
 

@@ -16,5 +16,6 @@ sealed class Screen(val route: String) {
     object AdminRecommendations : Screen("admin_recommendations")
     object AdminDatasets : Screen("admin_datasets")
     object AdminFeedback : Screen("admin_feedback")
+    object AdminActivity : Screen("admin_activity")
 }
 

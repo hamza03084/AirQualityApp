@@ -10,7 +10,9 @@ import androidx.work.WorkerParameters
 import com.example.airqualityapp.R
 import com.example.airqualityapp.data.local.AppDatabase
 import com.example.airqualityapp.data.remote.RealtimeDatabaseHelper
+import com.example.airqualityapp.data.repository.AdminRepository
 import com.example.airqualityapp.data.repository.AqiRepository
+import com.example.airqualityapp.data.repository.UserRepository
 import com.example.airqualityapp.util.AqiClassifier
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.tasks.await
@@ -30,10 +32,19 @@ class AqiFetchWorker(
 
             val db = AppDatabase.getInstance(applicationContext)
             val repository = AqiRepository(db.aqiDao())
+            val userRepository = UserRepository()
+            val adminRepository = AdminRepository()
 
-            // Default city - can be made configurable via DataStore
-            val city = inputData.getString("city") ?: "Lahore"
-            val alertThreshold = inputData.getInt("threshold", 150)
+            val profile = userRepository.getCurrentUserProfile()
+            val adminThresholds = runCatching { adminRepository.getThresholds() }.getOrNull()
+
+            val city = profile?.preferredCity?.takeIf { it.isNotBlank() }
+                ?: inputData.getString("city")
+                ?: "Lahore"
+            val alertThreshold = profile?.alertThreshold
+                ?: adminThresholds?.alertThreshold
+                ?: inputData.getInt("threshold", 150)
+            val notificationsEnabled = profile?.notificationsEnabled ?: true
 
             val result = repository.fetchAndSaveAqi(city)
 
@@ -57,11 +68,13 @@ class AqiFetchWorker(
 
                 // Send alert if threshold crossed
                 if (reading.aqi > alertThreshold) {
-                    sendAlert(
-                        "⚠️ AQI Alert: ${category.label}",
-                        "Current AQI is ${reading.aqi} in ${reading.city}. ${category.recommendation}"
-                    )
-                    // Also create alert in Realtime Database
+                    if (notificationsEnabled) {
+                        sendAlert(
+                            "⚠️ AQI Alert: ${category.label}",
+                            "Current AQI is ${reading.aqi} in ${reading.city}. ${category.recommendation}"
+                        )
+                    }
+                    // Always record alert in Realtime Database so admin audit trail stays complete
                     RealtimeDatabaseHelper.createAlert(
                         RealtimeDatabaseHelper.AqiAlert(
                             city = reading.city,

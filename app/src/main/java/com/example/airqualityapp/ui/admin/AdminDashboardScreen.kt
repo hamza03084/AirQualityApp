@@ -28,6 +28,7 @@ fun AdminDashboardScreen(
     onNavigateToRecommendations: () -> Unit,
     onNavigateToDatasets: () -> Unit,
     onNavigateToFeedback: () -> Unit,
+    onNavigateToActivity: () -> Unit,
     onLogout: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -154,6 +155,16 @@ fun AdminDashboardScreen(
                 icon = Icons.Default.Feedback,
                 color = Color(0xFFF57C00),
                 onClick = onNavigateToFeedback
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            AdminMenuCard(
+                title = "Activity Monitor",
+                description = "View recent manual submissions and alerts sent",
+                icon = Icons.Default.Timeline,
+                color = Color(0xFF00838F),
+                onClick = onNavigateToActivity
             )
         }
     }
