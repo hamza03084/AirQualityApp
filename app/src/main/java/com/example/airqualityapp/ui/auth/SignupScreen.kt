@@ -40,7 +40,6 @@ fun SignupScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
-    var selectedRole by remember { mutableStateOf("citizen") }
     var loading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
@@ -129,36 +128,6 @@ fun SignupScreen(
             visualTransformation = PasswordVisualTransformation()
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Role Selection
-        Text(
-            text = "Select Role",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.align(Alignment.Start)
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            FilterChip(
-                selected = selectedRole == "citizen",
-                onClick = { selectedRole = "citizen" },
-                label = { Text("👤 Citizen") },
-                modifier = Modifier.weight(1f)
-            )
-            FilterChip(
-                selected = selectedRole == "admin",
-                onClick = { selectedRole = "admin" },
-                label = { Text("🛡️ Admin") },
-                modifier = Modifier.weight(1f)
-            )
-        }
-
         Spacer(modifier = Modifier.height(8.dp))
 
         // Error message
@@ -195,18 +164,21 @@ fun SignupScreen(
 
                 scope.launch {
                     try {
-                        val authResult = auth.createUserWithEmailAndPassword(email, password).await()
+                        val trimmedEmail = email.trim()
+                        val trimmedName = name.trim()
+                        val authResult = auth.createUserWithEmailAndPassword(trimmedEmail, password).await()
+                        authResult.user?.getIdToken(false)?.await()
                         val uid = authResult.user?.uid ?: ""
                         val profile = UserProfile(
                             uid = uid,
-                            email = email,
-                            name = name,
-                            role = selectedRole
+                            email = trimmedEmail,
+                            name = trimmedName,
+                            role = "citizen"
                         )
                         userRepository.createUserProfile(profile)
                         loading = false
                         Toast.makeText(context, "Account Created!", Toast.LENGTH_SHORT).show()
-                        onSignupSuccess(selectedRole)
+                        onSignupSuccess("citizen")
                     } catch (e: Exception) {
                         loading = false
                         errorMessage = when {

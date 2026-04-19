@@ -149,20 +149,20 @@ fun LoginScreen(
                 loading = true
                 errorMessage = ""
 
-                auth.signInWithEmailAndPassword(email, password)
-                    .addOnSuccessListener {
-                        scope.launch {
-                            val profile = userRepository.getCurrentUserProfile()
-                            loading = false
-                            val role = profile?.role ?: "citizen"
-                            Toast.makeText(context, "Login Successful", Toast.LENGTH_SHORT).show()
-                            onLoginSuccess(role)
-                        }
-                    }
-                    .addOnFailureListener {
+                scope.launch {
+                    try {
+                        auth.signInWithEmailAndPassword(email.trim(), password).await()
+                        val profile = userRepository.getOrCreateCurrentUserProfile()
+                            ?: error("Signed in, but Firebase session is not ready yet.")
+                        val role = profile.role.ifBlank { "citizen" }
+                        Toast.makeText(context, "Login Successful", Toast.LENGTH_SHORT).show()
+                        onLoginSuccess(role)
+                    } catch (e: Exception) {
+                        errorMessage = e.toAuthErrorMessage("Login failed")
+                    } finally {
                         loading = false
-                        errorMessage = it.message ?: "Login failed"
                     }
+                }
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -270,19 +270,10 @@ private suspend fun doGoogleLogin(
         // Sign in to Firebase using suspend/await (runs on caller's coroutine context)
         val firebaseCredential = GoogleAuthProvider.getCredential(googleIdToken, null)
         val authResult = auth.signInWithCredential(firebaseCredential).await()
+        authResult.user?.getIdToken(false)?.await()
 
-        // Fetch or create user profile
-        val uid = authResult.user?.uid ?: ""
-        var profile = userRepository.getUserProfile(uid)
-        if (profile == null) {
-            profile = UserProfile(
-                uid = uid,
-                email = authResult.user?.email ?: "",
-                name = authResult.user?.displayName ?: "",
-                role = "citizen"
-            )
-            userRepository.createUserProfile(profile)
-        }
+        val profile = userRepository.getOrCreateCurrentUserProfile(defaultRole = "citizen")
+            ?: error("Signed in, but Firebase session is not ready yet.")
 
         // onSuccess is now called on the main thread (caller's coroutine scope)
         onSuccess(profile.role)
@@ -290,7 +281,17 @@ private suspend fun doGoogleLogin(
     } catch (e: GetCredentialException) {
         onError(e.message ?: "Google login failed")
     } catch (e: Exception) {
-        onError(e.message ?: "An unexpected error occurred")
+        onError(e.toAuthErrorMessage("An unexpected error occurred"))
+    }
+}
+
+private fun Throwable.toAuthErrorMessage(defaultMessage: String): String {
+    val rawMessage = message ?: return defaultMessage
+    return when {
+        rawMessage.contains("PERMISSION_DENIED", ignoreCase = true) ||
+            rawMessage.contains("insufficient permissions", ignoreCase = true) ->
+            "Firebase denied access to your profile. Publish the latest Firestore rules, then try again."
+        else -> rawMessage
     }
 }
 

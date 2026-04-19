@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.airqualityapp.data.local.AppDatabase
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 
@@ -17,6 +18,9 @@ class SyncWorker(
 
     override suspend fun doWork(): Result {
         return try {
+            val currentUser = FirebaseAuth.getInstance().currentUser ?: return Result.success()
+            currentUser.getIdToken(false).await()
+
             val db = AppDatabase.getInstance(applicationContext)
             val aqiDao = db.aqiDao()
             val manualSubmissionDao = db.manualSubmissionDao()

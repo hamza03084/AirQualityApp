@@ -12,6 +12,8 @@ import com.example.airqualityapp.data.local.AppDatabase
 import com.example.airqualityapp.data.remote.RealtimeDatabaseHelper
 import com.example.airqualityapp.data.repository.AqiRepository
 import com.example.airqualityapp.util.AqiClassifier
+import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.tasks.await
 
 /**
  * WorkManager worker that periodically fetches AQI data and sends alerts if thresholds are crossed.
@@ -23,6 +25,9 @@ class AqiFetchWorker(
 
     override suspend fun doWork(): Result {
         return try {
+            val currentUser = FirebaseAuth.getInstance().currentUser ?: return Result.success()
+            currentUser.getIdToken(false).await()
+
             val db = AppDatabase.getInstance(applicationContext)
             val repository = AqiRepository(db.aqiDao())
 

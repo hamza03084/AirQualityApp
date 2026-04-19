@@ -504,6 +504,12 @@ object RealtimeDatabaseHelper {
         Log.d(TAG, "Offline sync enabled for live_aqi and alerts")
     }
 
+    fun disableOfflineSync() {
+        db.getReference("live_aqi").keepSynced(false)
+        db.getReference("alerts").keepSynced(false)
+        Log.d(TAG, "Offline sync disabled for live_aqi and alerts")
+    }
+
     /**
      * Force go offline (for testing or saving bandwidth).
      */

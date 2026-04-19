@@ -1,7 +1,9 @@
 package com.example.airqualityapp.data.repository
 
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
 
 data class UserProfile(
@@ -37,38 +39,67 @@ class UserRepository {
     }
 
     suspend fun getCurrentUserProfile(): UserProfile? {
-        val uid = auth.currentUser?.uid ?: return null
-        return getUserProfile(uid)
+        val user = awaitAuthenticatedUser() ?: return null
+        return getUserProfile(user.uid)
+    }
+
+    suspend fun getOrCreateCurrentUserProfile(defaultRole: String = "citizen"): UserProfile? {
+        val user = awaitAuthenticatedUser() ?: return null
+        return getUserProfile(user.uid) ?: UserProfile(
+            uid = user.uid,
+            email = user.email ?: "",
+            name = user.displayName ?: "",
+            role = defaultRole
+        ).also { createUserProfile(it) }
     }
 
     @Suppress("MemberVisibilityCanBePrivate", "unused")
     suspend fun updateUserRole(uid: String, role: String) {
-        usersCollection.document(uid).update("role", role).await()
+        usersCollection.document(uid)
+            .set(mapOf("role" to role), SetOptions.merge())
+            .await()
     }
 
     suspend fun updateAlertThreshold(uid: String, threshold: Int) {
-        usersCollection.document(uid).update("alertThreshold", threshold).await()
+        usersCollection.document(uid)
+            .set(mapOf("alertThreshold" to threshold), SetOptions.merge())
+            .await()
     }
 
     suspend fun updateUserProfile(uid: String, name: String, age: Int, gender: String, phone: String) {
-        usersCollection.document(uid).update(
+        usersCollection.document(uid).set(
             mapOf(
                 "name" to name,
                 "age" to age,
                 "gender" to gender,
                 "phone" to phone
-            )
+            ),
+            SetOptions.merge()
         ).await()
     }
 
     @Suppress("MemberVisibilityCanBePrivate", "unused")
     suspend fun updateFcmToken(uid: String, token: String) {
-        usersCollection.document(uid).update("fcmToken", token).await()
+        usersCollection.document(uid)
+            .set(mapOf("fcmToken" to token), SetOptions.merge())
+            .await()
     }
 
     suspend fun getAllUsers(): List<UserProfile> {
         return try {
             val snapshot = usersCollection.get().await()
+            snapshot.toObjects(UserProfile::class.java)
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    suspend fun getAllCitizens(): List<UserProfile> {
+        return try {
+            val snapshot = usersCollection
+                .whereEqualTo("role", "citizen")
+                .get()
+                .await()
             snapshot.toObjects(UserProfile::class.java)
         } catch (_: Exception) {
             emptyList()
@@ -94,5 +125,11 @@ class UserRepository {
         usersCollection.document(user.uid).delete().await()
         // Delete Firebase Auth account
         user.delete().await()
+    }
+
+    private suspend fun awaitAuthenticatedUser(): FirebaseUser? {
+        val currentUser = auth.currentUser ?: return null
+        currentUser.getIdToken(false).await()
+        return currentUser
     }
 }

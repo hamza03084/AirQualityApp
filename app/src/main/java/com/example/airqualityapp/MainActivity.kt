@@ -14,6 +14,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.rememberNavController
 import androidx.work.*
 import com.example.airqualityapp.data.repository.UserRepository
@@ -25,9 +26,13 @@ import com.example.airqualityapp.ui.theme.AirQualityAppTheme
 import com.example.airqualityapp.data.remote.RealtimeDatabaseHelper
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.messaging.FirebaseMessaging
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
+
+    private var authStateListener: FirebaseAuth.AuthStateListener? = null
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -43,14 +48,7 @@ class MainActivity : ComponentActivity() {
         // Request notification permission for Android 13+
         askNotificationPermission()
 
-        // Subscribe to FCM topic for AQI alerts
-        FirebaseMessaging.getInstance().subscribeToTopic("aqi_alerts")
-
-        // Enable Realtime Database offline sync
-        RealtimeDatabaseHelper.enableOfflineSync()
-
-        // Schedule periodic workers
-        schedulePeriodicWorkers()
+        observeAuthState()
 
         setContent {
             AirQualityAppTheme {
@@ -88,6 +86,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        authStateListener?.let { FirebaseAuth.getInstance().removeAuthStateListener(it) }
+        super.onDestroy()
     }
 
     private fun askNotificationPermission() {
@@ -133,5 +136,34 @@ class MainActivity : ComponentActivity() {
             ExistingPeriodicWorkPolicy.KEEP,
             syncRequest
         )
+    }
+
+    private fun observeAuthState() {
+        val auth = FirebaseAuth.getInstance()
+        authStateListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
+            val currentUser = firebaseAuth.currentUser
+            if (currentUser != null) {
+                lifecycleScope.launch {
+                    runCatching { currentUser.getIdToken(false).await() }
+                        .onFailure {
+                            Log.w("MainActivity", "Firebase session is still initializing", it)
+                        }
+
+                    FirebaseMessaging.getInstance().subscribeToTopic("aqi_alerts")
+                    RealtimeDatabaseHelper.enableOfflineSync()
+                    schedulePeriodicWorkers()
+                }
+            } else {
+                cancelPeriodicWorkers()
+                RealtimeDatabaseHelper.disableOfflineSync()
+            }
+        }
+        auth.addAuthStateListener(authStateListener!!)
+    }
+
+    private fun cancelPeriodicWorkers() {
+        val workManager = WorkManager.getInstance(this)
+        workManager.cancelUniqueWork("aqi_fetch_worker")
+        workManager.cancelUniqueWork("sync_worker")
     }
 }

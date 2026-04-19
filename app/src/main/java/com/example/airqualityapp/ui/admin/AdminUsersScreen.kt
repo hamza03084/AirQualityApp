@@ -17,34 +17,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.airqualityapp.data.repository.UserProfile
 import com.example.airqualityapp.data.repository.UserRepository
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminUsersScreen(onBack: () -> Unit) {
     val userRepository = remember { UserRepository() }
-    val scope = rememberCoroutineScope()
-    var users by remember { mutableStateOf<List<UserProfile>>(emptyList()) }
+    var citizens by remember { mutableStateOf<List<UserProfile>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    var filterRole by remember { mutableStateOf("All") }
 
     LaunchedEffect(Unit) {
-        users = userRepository.getAllUsers()
+        citizens = userRepository.getAllCitizens()
         isLoading = false
-    }
-
-    val filteredUsers = remember(users, filterRole) {
-        when (filterRole) {
-            "Admin" -> users.filter { it.role == "admin" }
-            "Citizen" -> users.filter { it.role == "citizen" }
-            else -> users
-        }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("User Management") },
+                title = { Text("Citizens") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -59,20 +48,7 @@ fun AdminUsersScreen(onBack: () -> Unit) {
                 .padding(padding)
                 .padding(16.dp)
         ) {
-            // Filter chips
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("All", "Citizen", "Admin").forEach { role ->
-                    FilterChip(
-                        selected = filterRole == role,
-                        onClick = { filterRole = role },
-                        label = { Text(role) }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text("Total: ${filteredUsers.size} users", color = Color.Gray, fontSize = 14.sp)
+            Text("Total: ${citizens.size} citizens", color = Color.Gray, fontSize = 14.sp)
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -80,9 +56,13 @@ fun AdminUsersScreen(onBack: () -> Unit) {
                 Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
+            } else if (citizens.isEmpty()) {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text("No citizens registered yet", color = Color.Gray)
+                }
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(filteredUsers) { user ->
+                    items(citizens) { user ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp)
@@ -94,7 +74,7 @@ fun AdminUsersScreen(onBack: () -> Unit) {
                                 Icon(
                                     Icons.Default.Person,
                                     contentDescription = null,
-                                    tint = if (user.role == "admin") Color(0xFFE53935) else Color(0xFF1976D2),
+                                    tint = Color(0xFF1976D2),
                                     modifier = Modifier.size(40.dp)
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
@@ -106,15 +86,11 @@ fun AdminUsersScreen(onBack: () -> Unit) {
                                     )
                                     Text(user.email, fontSize = 14.sp, color = Color.Gray)
                                     Text(
-                                        "Role: ${user.role.replaceFirstChar { it.uppercase() }} | Threshold: ${user.alertThreshold}",
+                                        "Threshold: ${user.alertThreshold}",
                                         fontSize = 12.sp,
                                         color = Color.Gray
                                     )
                                 }
-                                AssistChip(
-                                    onClick = { },
-                                    label = { Text(user.role.replaceFirstChar { it.uppercase() }) }
-                                )
                             }
                         }
                     }

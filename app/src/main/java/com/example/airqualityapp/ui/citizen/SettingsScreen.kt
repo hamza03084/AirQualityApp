@@ -240,8 +240,8 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Delete Profile – citizens only
-            if (userProfile?.role == "citizen" || userProfile == null) {
+            // Delete Profile – citizens only (admins cannot delete their profile)
+            if (userProfile?.role == "citizen") {
                 if (deleteError.isNotEmpty()) {
                     Text(
                         text = deleteError,
