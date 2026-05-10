@@ -10,7 +10,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.airqualityapp"
+        applicationId = "com.example.airqualityapp.new"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

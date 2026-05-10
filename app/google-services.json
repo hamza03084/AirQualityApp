@@ -1,42 +1,42 @@
 {
   "project_info": {
-    "project_number": "1077261422626",
-    "firebase_url": "https://airqualityapp-e7fb2-default-rtdb.firebaseio.com",
-    "project_id": "airqualityapp-e7fb2",
-    "storage_bucket": "airqualityapp-e7fb2.firebasestorage.app"
+    "project_number": "848998940510",
+    "firebase_url": "https://airqualityapp-e8d0b-default-rtdb.firebaseio.com",
+    "project_id": "airqualityapp-e8d0b",
+    "storage_bucket": "airqualityapp-e8d0b.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1077261422626:android:88e8b20cd1dc77134f7a7b",
+        "mobilesdk_app_id": "1:848998940510:android:71882ad845d5969fd2d9cf",
         "android_client_info": {
-          "package_name": "com.example.airqualityapp"
+          "package_name": "com.example.airqualityapp.new"
         }
       },
       "oauth_client": [
         {
-          "client_id": "1077261422626-coabo8416op466683vrd23ktvobpqopj.apps.googleusercontent.com",
+          "client_id": "848998940510-1rvcjpq052sdrc142tq4mkdnotg03nrn.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.airqualityapp",
+            "package_name": "com.example.airqualityapp.new",
             "certificate_hash": "8ea3c11c294a26edbc50048257c835d22750fa4f"
           }
         },
         {
-          "client_id": "1077261422626-qnd5v4rh3rkubils454hkgpqci36obi7.apps.googleusercontent.com",
+          "client_id": "848998940510-pr4tdkl378gh5mm2m3v5e1hcv5nlh4k1.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyAuirQPwJ0UumIAwjHH_feIEhk1uKGjOBQ"
+          "current_key": "AIzaSyCrpY3D2GF8nA-nGIE00Nu_Yg8bhzWOFZk"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "1077261422626-qnd5v4rh3rkubils454hkgpqci36obi7.apps.googleusercontent.com",
+              "client_id": "848998940510-pr4tdkl378gh5mm2m3v5e1hcv5nlh4k1.apps.googleusercontent.com",
               "client_type": 3
             }
           ]
