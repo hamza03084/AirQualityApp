@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(export JAVA_HOME='C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr')",
+      "Bash(export PATH=\"$JAVA_HOME/bin:$PATH\")",
+      "Bash(./gradlew assembleDebug)",
+      "Bash(./gradlew :app:compileDebugKotlin)",
+      "Bash(./gradlew :app:compileDebugKotlin -Werror)",
+      "Bash(./gradlew :app:compileDebugKotlin --rerun-tasks)"
+    ]
+  }
+}
