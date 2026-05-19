@@ -12,9 +12,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.credentials.ClearCredentialStateRequest
+import androidx.credentials.CredentialManager
 import com.example.airqualityapp.data.repository.AdminRepository
 import com.example.airqualityapp.data.repository.UserRepository
 import com.google.firebase.auth.FirebaseAuth
@@ -32,6 +35,7 @@ fun AdminDashboardScreen(
     onLogout: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val userRepository = remember { UserRepository() }
     val adminRepository = remember { AdminRepository() }
 
@@ -56,8 +60,16 @@ fun AdminDashboardScreen(
                 },
                 actions = {
                     IconButton(onClick = {
-                        FirebaseAuth.getInstance().signOut()
-                        onLogout()
+                        scope.launch {
+                            // Clear CredentialManager state so a future Google sign-in
+                            // doesn't hang on stale credentials after repeated logouts.
+                            runCatching {
+                                CredentialManager.create(context)
+                                    .clearCredentialState(ClearCredentialStateRequest())
+                            }
+                            FirebaseAuth.getInstance().signOut()
+                            onLogout()
+                        }
                     }) {
                         Icon(Icons.Default.ExitToApp, contentDescription = "Logout")
                     }

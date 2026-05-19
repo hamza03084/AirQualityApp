@@ -31,6 +31,7 @@ import com.example.airqualityapp.data.repository.UserRepository
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
@@ -189,22 +190,28 @@ fun LoginScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-
         // Google Login Button
         OutlinedButton(
             onClick = {
                 scope.launch {
                     googleLoading = true
-                    doGoogleLogin(context, auth, userRepository, webClientId,
-                        onSuccess = { role ->
-                            googleLoading = false
-                            onLoginSuccess(role)
-                        },
-                        onError = { error ->
-                            googleLoading = false
-                            errorMessage = error
+                    errorMessage = ""
+                    try {
+                        withTimeout(30_000) {
+                            doGoogleLogin(context, auth, userRepository, webClientId,
+                                onSuccess = { role ->
+                                    onLoginSuccess(role)
+                                },
+                                onError = { error ->
+                                    errorMessage = error
+                                }
+                            )
                         }
-                    )
+                    } catch (_: TimeoutCancellationException) {
+                        errorMessage = "Google login timed out. Please try again."
+                    } finally {
+                        googleLoading = false
+                    }
                 }
             },
             modifier = Modifier
@@ -292,6 +299,10 @@ private suspend fun doGoogleLogin(
 
     } catch (e: GetCredentialException) {
         onError(e.message ?: "Google login failed")
+    } catch (e: FirebaseAuthUserCollisionException) {
+        // This email was already registered with email/password (or another provider).
+        // Firebase blocks Google sign-in for it unless the providers are linked.
+        onError("This email is already registered with a password. Please log in with your email and password instead.")
     } catch (e: Exception) {
         onError(e.toAuthErrorMessage("An unexpected error occurred"))
     }

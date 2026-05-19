@@ -2,14 +2,14 @@ package com.example.airqualityapp.ml
 
 import android.content.Context
 import android.util.Log
-import org.tensorflow.lite.DataType
-import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
+import org.tensorflow.lite.Interpreter
+import java.io.FileInputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.channels.FileChannel
 
 /**
- * Wraps the ML-Model-Binding generated [AqiModel] class (built from
- * app/src/main/ml/aqi_model.tflite at compile time).
+ * Loads aqi_model.tflite from app/src/main/assets/ via the raw TFLite Interpreter.
  *
  * Input order (must match Colab training):
  *   [components_pm2_5, components_pm10, temperature_2m,
@@ -21,10 +21,18 @@ import java.nio.ByteOrder
  */
 class AqiPredictor(context: Context) {
 
-    private val model: AqiModel? = try {
-        AqiModel.newInstance(context.applicationContext)
+    private val interpreter: Interpreter? = try {
+        val afd = context.applicationContext.assets.openFd(MODEL_FILE)
+        FileInputStream(afd.fileDescriptor).channel.use { channel ->
+            val buffer = channel.map(
+                FileChannel.MapMode.READ_ONLY,
+                afd.startOffset,
+                afd.declaredLength
+            )
+            Interpreter(buffer)
+        }
     } catch (e: Exception) {
-        Log.e(TAG, "Failed to load AqiModel", e)
+        Log.e(TAG, "Failed to load $MODEL_FILE from assets", e)
         null
     }
 
@@ -35,24 +43,27 @@ class AqiPredictor(context: Context) {
         humidity: Double,
         windSpeed: Double
     ): Int {
-        val m = model ?: run {
+        val tflite = interpreter ?: run {
             Log.w(TAG, "Model unavailable — returning 0")
             return 0
         }
 
         val raw = doubleArrayOf(pm25, pm10, temperature, humidity, windSpeed)
-        val buf = ByteBuffer
+        val input = ByteBuffer
             .allocateDirect(Float.SIZE_BYTES * INPUT_SIZE)
             .order(ByteOrder.nativeOrder())
         for (i in 0 until INPUT_SIZE) {
-            buf.putFloat(((raw[i] - MEAN[i]) / STD[i]).toFloat())
+            input.putFloat(((raw[i] - MEAN[i]) / STD[i]).toFloat())
         }
-        buf.rewind()
+        input.rewind()
 
-        val input = TensorBuffer.createFixedSize(intArrayOf(1, INPUT_SIZE), DataType.FLOAT32)
-        input.loadBuffer(buf)
+        val output = ByteBuffer
+            .allocateDirect(Float.SIZE_BYTES)
+            .order(ByteOrder.nativeOrder())
+        tflite.run(input, output)
+        output.rewind()
+        val aqi = output.float
 
-        val aqi = m.process(input).outputFeature0AsTensorBuffer.floatArray[0]
         Log.d(
             TAG,
             "pm25=$pm25 pm10=$pm10 t=$temperature h=$humidity w=$windSpeed → aqi=$aqi"
@@ -61,11 +72,12 @@ class AqiPredictor(context: Context) {
     }
 
     fun close() {
-        model?.close()
+        interpreter?.close()
     }
 
     companion object {
         private const val TAG = "AqiPredictor"
+        private const val MODEL_FILE = "aqi_model.tflite"
         private const val INPUT_SIZE = 5
 
         // StandardScaler params from Colab (2026-04-19 training run).

@@ -21,6 +21,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.credentials.ClearCredentialStateRequest
+import androidx.credentials.CredentialManager
 import com.example.airqualityapp.data.repository.UserProfile
 import com.example.airqualityapp.data.repository.UserRepository
 import com.google.firebase.auth.FirebaseAuth
@@ -346,8 +348,17 @@ fun SettingsScreen(
             // Logout Button
             OutlinedButton(
                 onClick = {
-                    auth.signOut()
-                    onLogout()
+                    scope.launch {
+                        // Clear CredentialManager state so the next Google sign-in
+                        // doesn't hang on stale cached credentials after repeated
+                        // login/logout cycles in the same process.
+                        runCatching {
+                            CredentialManager.create(context)
+                                .clearCredentialState(ClearCredentialStateRequest())
+                        }
+                        auth.signOut()
+                        onLogout()
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
