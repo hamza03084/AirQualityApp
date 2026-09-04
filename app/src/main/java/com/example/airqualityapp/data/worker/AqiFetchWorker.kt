@@ -1,24 +1,22 @@
 package com.example.airqualityapp.data.worker
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.Context
-import android.os.Build
-import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.example.airqualityapp.R
 import com.example.airqualityapp.data.local.AppDatabase
 import com.example.airqualityapp.data.remote.RealtimeDatabaseHelper
-import com.example.airqualityapp.data.repository.AdminRepository
 import com.example.airqualityapp.data.repository.AqiRepository
 import com.example.airqualityapp.data.repository.UserRepository
+import com.example.airqualityapp.util.AlertNotifier
 import com.example.airqualityapp.util.AqiClassifier
+import com.example.airqualityapp.util.AqiConfig
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.tasks.await
 
 /**
- * WorkManager worker that periodically fetches AQI data and sends alerts if thresholds are crossed.
+ * WorkManager worker that periodically (every 60 minutes) fetches AQI data for the
+ * user's preferred city, publishes it to the Realtime Database and raises an alert
+ * when the AQI crosses the configured threshold.
  */
 class AqiFetchWorker(
     context: Context,
@@ -30,92 +28,42 @@ class AqiFetchWorker(
             val currentUser = FirebaseAuth.getInstance().currentUser ?: return Result.success()
             currentUser.getIdToken(false).await()
 
+            // Load admin thresholds / recommendations (no live listener in a worker).
+            AqiConfig.loadOnce()
+
             val db = AppDatabase.getInstance(applicationContext)
             val repository = AqiRepository(db.aqiDao())
-            val userRepository = UserRepository()
-            val adminRepository = AdminRepository()
-
-            val profile = userRepository.getCurrentUserProfile()
-            val adminThresholds = runCatching { adminRepository.getThresholds() }.getOrNull()
+            val profile = UserRepository().getCurrentUserProfile()
 
             val city = profile?.preferredCity?.takeIf { it.isNotBlank() }
                 ?: inputData.getString("city")
                 ?: "Lahore"
-            val alertThreshold = profile?.alertThreshold
-                ?: adminThresholds?.alertThreshold
-                ?: inputData.getInt("threshold", 150)
-            val notificationsEnabled = profile?.notificationsEnabled ?: true
 
-            val result = repository.fetchAndSaveAqi(city)
+            val reading = repository.fetchAndSaveAqi(city).getOrNull() ?: return Result.retry()
 
-            result.onSuccess { reading ->
-                // Push to Realtime Database for live sync
-                val category = AqiClassifier.classify(reading.aqi)
-                val liveData = RealtimeDatabaseHelper.LiveAqiData(
-                    aqi = reading.aqi,
-                    pm25 = reading.pm25,
-                    pm10 = reading.pm10,
-                    temperature = reading.temperature,
-                    humidity = reading.humidity,
-                    windSpeed = reading.windSpeed,
-                    city = reading.city,
-                    category = category.label,
-                    source = "api",
-                    timestamp = reading.timestamp
-                )
-                RealtimeDatabaseHelper.writeLiveAqi(liveData)
-                RealtimeDatabaseHelper.pushAqiHistory(reading.city, liveData)
+            // Publish to Realtime Database for live sync across devices
+            val category = AqiClassifier.classify(reading.aqi)
+            val liveData = RealtimeDatabaseHelper.LiveAqiData(
+                aqi = reading.aqi,
+                pm25 = reading.pm25,
+                pm10 = reading.pm10,
+                temperature = reading.temperature,
+                humidity = reading.humidity,
+                windSpeed = reading.windSpeed,
+                city = reading.city,
+                category = category.label,
+                source = "api",
+                timestamp = reading.timestamp
+            )
+            RealtimeDatabaseHelper.writeLiveAqi(liveData)
+            RealtimeDatabaseHelper.pushAqiHistory(reading.city, liveData)
 
-                // Send alert if threshold crossed
-                if (reading.aqi > alertThreshold) {
-                    if (notificationsEnabled) {
-                        sendAlert(
-                            "⚠️ AQI Alert: ${category.label}",
-                            "Current AQI is ${reading.aqi} in ${reading.city}. ${category.recommendation}"
-                        )
-                    }
-                    // Always record alert in Realtime Database so admin audit trail stays complete
-                    RealtimeDatabaseHelper.createAlert(
-                        RealtimeDatabaseHelper.AqiAlert(
-                            city = reading.city,
-                            aqi = reading.aqi,
-                            category = category.label,
-                            message = "AQI is ${reading.aqi} — ${category.recommendation}",
-                            timestamp = System.currentTimeMillis()
-                        )
-                    )
-                }
-            }
+            // Threshold check, de-duplication, notification and audit record
+            AlertNotifier.checkAndNotify(applicationContext, reading, profile)
 
             Result.success()
         } catch (e: Exception) {
             if (runAttemptCount < 3) Result.retry() else Result.failure()
         }
     }
-
-    private fun sendAlert(title: String, body: String) {
-        val channelId = "aqi_alerts"
-        val notificationManager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                "AQI Alerts",
-                NotificationManager.IMPORTANCE_HIGH
-            )
-            notificationManager.createNotificationChannel(channel)
-        }
-
-        val notification = NotificationCompat.Builder(applicationContext, channelId)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(title)
-            .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .build()
-
-        notificationManager.notify(System.currentTimeMillis().toInt(), notification)
-    }
 }
-

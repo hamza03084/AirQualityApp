@@ -136,6 +136,10 @@ fun AdminRecommendationsScreen(onBack: () -> Unit) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Button(
                                         onClick = {
+                                            if (editRecommendation.isBlank() || editHealthImpact.isBlank()) {
+                                                Toast.makeText(context, "Health impact and recommendation cannot be empty", Toast.LENGTH_SHORT).show()
+                                                return@Button
+                                            }
                                             scope.launch {
                                                 try {
                                                     adminRepository.updateRecommendation(
@@ -148,7 +152,7 @@ fun AdminRecommendationsScreen(onBack: () -> Unit) {
                                                     )
                                                     recommendations = adminRepository.getRecommendations()
                                                     editingCategory = null
-                                                    Toast.makeText(context, "Updated!", Toast.LENGTH_SHORT).show()
+                                                    Toast.makeText(context, "Updated – citizens now see this text", Toast.LENGTH_SHORT).show()
                                                 } catch (e: Exception) {
                                                     Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
                                                 }

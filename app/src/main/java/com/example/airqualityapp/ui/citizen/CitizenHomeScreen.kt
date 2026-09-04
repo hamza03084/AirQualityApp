@@ -31,10 +31,21 @@ import com.example.airqualityapp.data.local.AppDatabase
 import com.example.airqualityapp.data.local.entity.AqiReadingEntity
 import com.example.airqualityapp.data.remote.RealtimeDatabaseHelper
 import com.example.airqualityapp.data.repository.AqiRepository
+import com.example.airqualityapp.data.repository.UserProfile
+import com.example.airqualityapp.data.repository.UserRepository
 import com.example.airqualityapp.ml.AqiPredictor
+import com.example.airqualityapp.util.AlertNotifier
 import com.example.airqualityapp.util.AqiClassifier
+import com.example.airqualityapp.util.NetworkUtils
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+private val HOME_CITIES = listOf(
+    "Lahore", "Karachi", "Islamabad", "Rawalpindi", "Faisalabad", "Multan", "Peshawar", "Quetta"
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,27 +62,38 @@ fun CitizenHomeScreen(
     val db = remember { AppDatabase.getInstance(context) }
     val repository = remember { AqiRepository(db.aqiDao()) }
     val predictor = remember { AqiPredictor(context) }
+    val userRepository = remember { UserRepository() }
 
+    var profile by remember { mutableStateOf<UserProfile?>(null) }
     var currentReading by remember { mutableStateOf<AqiReadingEntity?>(null) }
     var predictedAqi by remember { mutableStateOf<Int?>(null) }
     var isRefreshing by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
-    var selectedCity by remember { mutableStateOf("Lahore") }
+    var isOffline by remember { mutableStateOf(false) }
+    var selectedCity by remember { mutableStateOf<String?>(null) }
     var selectedNavItem by remember { mutableIntStateOf(0) }
 
-    val userName = FirebaseAuth.getInstance().currentUser?.displayName ?: "User"
+    val userName = FirebaseAuth.getInstance().currentUser?.displayName?.takeIf { it.isNotBlank() }
+        ?: profile?.name?.takeIf { it.isNotBlank() }
+        ?: "User"
 
-    // Auto-fetch from API every time the city changes
-    LaunchedEffect(selectedCity) {
+    DisposableEffect(Unit) {
+        onDispose { predictor.close() }
+    }
+
+    fun predictFor(reading: AqiReadingEntity) = predictor.predict(
+        reading.pm25, reading.pm10, reading.temperature, reading.humidity, reading.windSpeed
+    )
+
+    suspend fun loadCity(city: String) {
         isRefreshing = true
         errorMessage = ""
-        val result = repository.fetchAndSaveAqi(selectedCity)
-        result.onSuccess { reading ->
+        val result = repository.fetchAndSaveAqi(city)
+        result.getOrNull()?.let { reading ->
             currentReading = reading
-            predictedAqi = predictor.predict(
-                reading.pm25, reading.pm10,
-                reading.temperature, reading.humidity, reading.windSpeed
-            )
+            isOffline = false
+            predictedAqi = predictFor(reading)
+
             // Push to Realtime Database for live sync across devices
             val category = AqiClassifier.classify(reading.aqi)
             val liveData = RealtimeDatabaseHelper.LiveAqiData(
@@ -88,51 +110,38 @@ fun CitizenHomeScreen(
             )
             RealtimeDatabaseHelper.writeLiveAqi(liveData)
             RealtimeDatabaseHelper.pushAqiHistory(reading.city, liveData)
+
+            // Alert immediately if the live value crosses the user's threshold
+            AlertNotifier.checkAndNotify(context, reading, profile)
         }
-        result.onFailure {
-            errorMessage = it.message ?: "Failed to fetch data"
-            // Fall back to latest cached data
-            val latest = repository.getLatestReading()
-            if (latest != null) currentReading = latest
+        result.exceptionOrNull()?.let { e ->
+            isOffline = !NetworkUtils.isOnline(context)
+            errorMessage = e.message ?: "Failed to fetch data"
+            // Offline fallback: show the last fetched reading
+            if (currentReading == null) currentReading = repository.getLatestReading()
+            currentReading?.let { predictedAqi = predictFor(it) }
         }
         isRefreshing = false
     }
 
-    fun refreshData() {
-        scope.launch {
-            isRefreshing = true
-            errorMessage = ""
-            val result = repository.fetchAndSaveAqi(selectedCity)
-            result.onSuccess { reading ->
-                currentReading = reading
-                predictedAqi = predictor.predict(
-                    reading.pm25, reading.pm10,
-                    reading.temperature, reading.humidity, reading.windSpeed
-                )
-                // Push to Realtime Database
-                val category = AqiClassifier.classify(reading.aqi)
-                val liveData = RealtimeDatabaseHelper.LiveAqiData(
-                    aqi = reading.aqi,
-                    pm25 = reading.pm25,
-                    pm10 = reading.pm10,
-                    temperature = reading.temperature,
-                    humidity = reading.humidity,
-                    windSpeed = reading.windSpeed,
-                    city = reading.city,
-                    category = category.label,
-                    source = "api",
-                    timestamp = reading.timestamp
-                )
-                RealtimeDatabaseHelper.writeLiveAqi(liveData)
-                RealtimeDatabaseHelper.pushAqiHistory(reading.city, liveData)
-            }
-            result.onFailure {
-                errorMessage = it.message ?: "Failed to fetch data"
-                val latest = repository.getLatestReading()
-                if (latest != null) currentReading = latest
-            }
-            isRefreshing = false
+    // 1. Show cached data instantly, load profile, then pick the preferred city
+    LaunchedEffect(Unit) {
+        repository.getLatestReading()?.let { cached ->
+            currentReading = cached
+            predictedAqi = predictFor(cached)
         }
+        profile = userRepository.getCurrentUserProfile()
+        selectedCity = profile?.preferredCity?.takeIf { it in HOME_CITIES } ?: "Lahore"
+    }
+
+    // 2. Auto-fetch from the API every time the city changes
+    LaunchedEffect(selectedCity) {
+        selectedCity?.let { loadCity(it) }
+    }
+
+    fun refreshData() {
+        val city = selectedCity ?: return
+        scope.launch { loadCity(city) }
     }
 
     Scaffold(
@@ -197,10 +206,20 @@ fun CitizenHomeScreen(
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // City selector
-            CitySelector(selectedCity) { selectedCity = it; refreshData() }
+            // City selector (changing the city triggers a fetch through LaunchedEffect)
+            CitySelector(selectedCity ?: "Lahore") { selectedCity = it }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Offline / error status banner
+            if (errorMessage.isNotEmpty()) {
+                ConnectionStatusBanner(
+                    isOffline = isOffline,
+                    message = errorMessage,
+                    hasCachedData = currentReading != null
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             if (currentReading != null) {
                 val reading = currentReading!!
@@ -213,7 +232,10 @@ fun CitizenHomeScreen(
                     category = category.label
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                // Last-updated line (required for offline mode)
+                LastUpdatedRow(reading = reading, isLive = errorMessage.isEmpty())
+
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // Health Impact Card
                 Card(
@@ -284,11 +306,16 @@ fun CitizenHomeScreen(
                                     color = predCategory.color,
                                     fontWeight = FontWeight.Medium
                                 )
+                                Text(
+                                    "On-device TensorFlow Lite model",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.Gray
+                                )
                             }
                         }
                     }
                 }
-            } else {
+            } else if (!isRefreshing) {
                 // No data yet
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -308,14 +335,13 @@ fun CitizenHomeScreen(
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         Text("No AQI data available", fontWeight = FontWeight.Medium)
-                        Text("Tap Refresh to fetch current data", color = Color.Gray)
+                        Text("Connect to the internet and tap Refresh", color = Color.Gray)
                     }
                 }
-            }
-
-            if (errorMessage.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(errorMessage, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            } else {
+                Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -326,7 +352,7 @@ fun CitizenHomeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(55.dp),
-                enabled = !isRefreshing,
+                enabled = !isRefreshing && selectedCity != null,
                 shape = RoundedCornerShape(12.dp)
             ) {
                 if (isRefreshing) {
@@ -347,6 +373,55 @@ fun CitizenHomeScreen(
             AqiLegendCard()
         }
     }
+}
+
+@Composable
+private fun ConnectionStatusBanner(isOffline: Boolean, message: String, hasCachedData: Boolean) {
+    val (icon, title, detail) = when {
+        isOffline && hasCachedData -> Triple(
+            Icons.Default.CloudOff, "You are offline",
+            "Showing the last fetched AQI. Data will refresh automatically when you reconnect."
+        )
+        isOffline -> Triple(
+            Icons.Default.CloudOff, "You are offline",
+            "No cached AQI data yet. Connect to the internet and tap Refresh."
+        )
+        hasCachedData -> Triple(
+            Icons.Default.Warning, "Could not refresh",
+            "$message Showing the last fetched AQI."
+        )
+        else -> Triple(Icons.Default.Warning, "Could not fetch data", message)
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0))
+    ) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = Color(0xFFEF6C00))
+            Spacer(modifier = Modifier.width(10.dp))
+            Column {
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFFEF6C00))
+                Text(detail, style = MaterialTheme.typography.bodySmall, color = Color.DarkGray)
+            }
+        }
+    }
+}
+
+@Composable
+private fun LastUpdatedRow(reading: AqiReadingEntity, isLive: Boolean) {
+    val fmt = remember { SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()) }
+    val sourceLabel = when {
+        reading.source == "manual" -> "📝 manual entry"
+        isLive -> "📡 live data"
+        else -> "💾 cached data"
+    }
+    Text(
+        text = "Last updated: ${fmt.format(Date(reading.timestamp))} · $sourceLabel",
+        style = MaterialTheme.typography.bodySmall,
+        color = Color.Gray,
+        textAlign = TextAlign.Center
+    )
 }
 
 @Composable
@@ -425,7 +500,6 @@ fun WeatherInfoChip(emoji: String, label: String, value: String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CitySelector(selectedCity: String, onCitySelected: (String) -> Unit) {
-    val cities = listOf("Lahore", "Karachi", "Islamabad", "Rawalpindi", "Faisalabad", "Multan", "Peshawar", "Quetta")
     var expanded by remember { mutableStateOf(false) }
 
     ExposedDropdownMenuBox(
@@ -443,7 +517,7 @@ fun CitySelector(selectedCity: String, onCitySelected: (String) -> Unit) {
                 .menuAnchor()
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            cities.forEach { city ->
+            HOME_CITIES.forEach { city ->
                 DropdownMenuItem(
                     text = { Text(city) },
                     onClick = {
@@ -479,11 +553,10 @@ fun AqiLegendCard() {
                             .background(cat.color)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(range, modifier = Modifier.width(60.dp), fontSize = 12.sp)
+                    Text(range, modifier = Modifier.width(70.dp), fontSize = 12.sp)
                     Text(cat.label, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                 }
             }
         }
     }
 }
-

@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.airqualityapp.data.repository.AdminRepository
 import com.example.airqualityapp.data.repository.AqiThreshold
+import com.example.airqualityapp.util.AqiConfig
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,6 +39,7 @@ fun AdminThresholdsScreen(onBack: () -> Unit) {
     var unhealthyMax by remember { mutableStateOf("200") }
     var veryUnhealthyMax by remember { mutableStateOf("300") }
     var alertThreshold by remember { mutableStateOf("150") }
+    var validationError by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         val t = adminRepository.getThresholds()
@@ -121,23 +123,47 @@ fun AdminThresholdsScreen(onBack: () -> Unit) {
                     singleLine = true
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    "These values define the AQI bands shown to citizens and the alert level used for notifications. " +
+                        "Each maximum must be greater than the previous one.",
+                    color = Color.Gray,
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                if (validationError.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(validationError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
 
                 Button(
                     onClick = {
+                        val values = listOf(goodMax, moderateMax, unhealthySensitiveMax, unhealthyMax, veryUnhealthyMax, alertThreshold)
+                        if (values.any { it.trim().toIntOrNull() == null }) {
+                            validationError = "All thresholds must be whole numbers."
+                            return@Button
+                        }
+                        val updated = AqiThreshold(
+                            goodMax = goodMax.trim().toInt(),
+                            moderateMax = moderateMax.trim().toInt(),
+                            unhealthySensitiveMax = unhealthySensitiveMax.trim().toInt(),
+                            unhealthyMax = unhealthyMax.trim().toInt(),
+                            veryUnhealthyMax = veryUnhealthyMax.trim().toInt(),
+                            alertThreshold = alertThreshold.trim().toInt()
+                        )
+                        if (!AqiConfig.isValid(updated)) {
+                            validationError = "Values must be positive and strictly increasing: Good < Moderate < Sensitive < Unhealthy < Very Unhealthy."
+                            return@Button
+                        }
+                        validationError = ""
                         scope.launch {
                             isSaving = true
                             try {
-                                val updated = AqiThreshold(
-                                    goodMax = goodMax.toIntOrNull() ?: 50,
-                                    moderateMax = moderateMax.toIntOrNull() ?: 100,
-                                    unhealthySensitiveMax = unhealthySensitiveMax.toIntOrNull() ?: 150,
-                                    unhealthyMax = unhealthyMax.toIntOrNull() ?: 200,
-                                    veryUnhealthyMax = veryUnhealthyMax.toIntOrNull() ?: 300,
-                                    alertThreshold = alertThreshold.toIntOrNull() ?: 150
-                                )
                                 adminRepository.updateThresholds(updated)
-                                Toast.makeText(context, "Thresholds saved!", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Thresholds saved and applied to all users", Toast.LENGTH_SHORT).show()
                             } catch (e: Exception) {
                                 Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
                             }

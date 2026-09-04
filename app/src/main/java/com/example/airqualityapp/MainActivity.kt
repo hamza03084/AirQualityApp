@@ -24,6 +24,7 @@ import com.example.airqualityapp.navigation.AppNavGraph
 import com.example.airqualityapp.navigation.Screen
 import com.example.airqualityapp.ui.theme.AirQualityAppTheme
 import com.example.airqualityapp.data.remote.RealtimeDatabaseHelper
+import com.example.airqualityapp.util.AqiConfig
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.launch
@@ -149,11 +150,14 @@ class MainActivity : ComponentActivity() {
                         }
 
                     FirebaseMessaging.getInstance().subscribeToTopic("aqi_alerts")
+                    // Admin thresholds + recommendations (live, cached offline by Firestore)
+                    AqiConfig.start()
                     RealtimeDatabaseHelper.enableOfflineSync()
                     schedulePeriodicWorkers()
                 }
             } else {
                 cancelPeriodicWorkers()
+                AqiConfig.stop()
                 RealtimeDatabaseHelper.disableOfflineSync()
             }
         }

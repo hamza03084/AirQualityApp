@@ -45,8 +45,8 @@ fun AdminDashboardScreen(
 
     LaunchedEffect(Unit) {
         totalUsers = userRepository.getUserCount()
-        totalFeedback = try { adminRepository.getFeedbackList().size } catch (e: Exception) { 0 }
-        totalDatasets = try { adminRepository.getAqiDatasets().size } catch (e: Exception) { 0 }
+        totalFeedback = adminRepository.getFeedbackCount()
+        totalDatasets = adminRepository.getDatasetCount()
     }
 
     Scaffold(

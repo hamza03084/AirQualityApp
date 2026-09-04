@@ -4,6 +4,8 @@ import android.util.Log
 import com.example.airqualityapp.data.local.dao.AqiDao
 import com.example.airqualityapp.data.local.entity.AqiReadingEntity
 import com.example.airqualityapp.data.remote.NetworkModule
+import com.example.airqualityapp.util.AqiMath
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.Flow
 
 class AqiRepository(private val aqiDao: AqiDao) {
@@ -54,7 +56,7 @@ class AqiRepository(private val aqiDao: AqiDao) {
             // Step 4: Calculate US EPA AQI from PM2.5 concentration
             val pm25 = components.pm25 ?: 0.0
             val pm10 = components.pm10 ?: 0.0
-            val calculatedAqi = calculateAqiFromPm25(pm25)
+            val calculatedAqi = AqiMath.aqiFromPm25(pm25)
 
             val reading = AqiReadingEntity(
                 aqi = calculatedAqi,
@@ -66,7 +68,9 @@ class AqiRepository(private val aqiDao: AqiDao) {
                 city = geoResponse[0].name ?: city,
                 source = "api",
                 timestamp = System.currentTimeMillis(),
-                synced = true
+                // synced = false so SyncWorker backs the reading up to Firestore (cloud history)
+                synced = false,
+                userId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
             )
 
             aqiDao.insert(reading)
@@ -79,26 +83,7 @@ class AqiRepository(private val aqiDao: AqiDao) {
         }
     }
 
-    /**
-     * Calculate US EPA AQI from PM2.5 concentration (μg/m³).
-     * Uses official EPA breakpoints.
-     * Reference: https://www.airnow.gov/aqi/aqi-basics/
-     */
-    private fun calculateAqiFromPm25(pm25: Double): Int {
-        return when {
-            pm25 <= 12.0   -> linearScale(pm25, 0.0, 12.0, 0, 50)
-            pm25 <= 35.4   -> linearScale(pm25, 12.1, 35.4, 51, 100)
-            pm25 <= 55.4   -> linearScale(pm25, 35.5, 55.4, 101, 150)
-            pm25 <= 150.4  -> linearScale(pm25, 55.5, 150.4, 151, 200)
-            pm25 <= 250.4  -> linearScale(pm25, 150.5, 250.4, 201, 300)
-            pm25 <= 500.4  -> linearScale(pm25, 250.5, 500.4, 301, 500)
-            else           -> 500
-        }
-    }
-
-    private fun linearScale(value: Double, cLow: Double, cHigh: Double, iLow: Int, iHigh: Int): Int {
-        return ((iHigh - iLow).toDouble() / (cHigh - cLow) * (value - cLow) + iLow).toInt()
-    }
+    // US-EPA AQI calculation lives in util.AqiMath (shared with the CSV importer).
 
     // ── Local DB queries ──────────────────────────────────────────
 
