@@ -9,11 +9,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.TrendingDown
-import androidx.compose.material.icons.filled.TrendingFlat
-import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingFlat
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -73,7 +73,7 @@ fun HistoryScreen(
                 title = { Text("AQI History & Trends") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -308,9 +308,9 @@ private fun TrendSummaryRow(points: List<TrendPoint>) {
     val second = points.drop(half).map { it.aqi }.average()
     val change = second - first
     val (icon, text, color) = when {
-        change > 10 -> Triple(Icons.Default.TrendingUp, "Air quality is worsening (AQI up ${change.toInt()} on average)", AqiClassifier.AqiRed)
-        change < -10 -> Triple(Icons.Default.TrendingDown, "Air quality is improving (AQI down ${(-change).toInt()} on average)", AqiClassifier.AqiGreen)
-        else -> Triple(Icons.Default.TrendingFlat, "Air quality is stable over this period", Color.Gray)
+        change > 10 -> Triple(Icons.AutoMirrored.Filled.TrendingUp, "Air quality is worsening (AQI up ${change.toInt()} on average)", AqiClassifier.AqiRed)
+        change < -10 -> Triple(Icons.AutoMirrored.Filled.TrendingDown, "Air quality is improving (AQI down ${(-change).toInt()} on average)", AqiClassifier.AqiGreen)
+        else -> Triple(Icons.AutoMirrored.Filled.TrendingFlat, "Air quality is stable over this period", Color.Gray)
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))

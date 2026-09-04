@@ -144,6 +144,9 @@ class UserRepository {
      */
     suspend fun deleteUserAccount() {
         val user = auth.currentUser ?: throw Exception("No user logged in")
+        // Force a fresh ID token so the Firestore SDK does not reuse stale credentials
+        // (same-process logout/login can otherwise make the write hang forever).
+        user.getIdToken(true).await()
         // Delete Firestore profile
         usersCollection.document(user.uid).delete().await()
         // Delete Firebase Auth account

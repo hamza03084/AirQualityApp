@@ -12,6 +12,8 @@ firebaseBom = "34.10.0"
 googleServices = "4.4.4"
 credentials = "1.5.0"
 googleid = "1.2.0"
+playServicesBasement = "18.8.0"
+fragment = "1.8.9"
 navigationCompose = "2.9.7"
 room = "2.8.4"
 ksp = "2.3.2"
@@ -47,6 +49,8 @@ firebase-database = { group = "com.google.firebase", name = "firebase-database" 
 androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
 androidx-credentials-play-services-auth = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
 googleid = { group = "com.google.android.libraries.identity.googleid", name = "googleid", version.ref = "googleid" }
+play-services-basement = { group = "com.google.android.gms", name = "play-services-basement", version.ref = "playServicesBasement" }
+androidx-fragment = { group = "androidx.fragment", name = "fragment", version.ref = "fragment" }
 navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }

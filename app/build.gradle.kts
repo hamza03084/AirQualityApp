@@ -41,6 +41,8 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
+    // Play Services pulls in fragment 1.2.5 transitively; ActivityResult APIs need >= 1.3.0 (lint error).
+    implementation(libs.androidx.fragment)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
@@ -66,6 +68,9 @@ dependencies {
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
+    // Already resolved transitively (Firebase Auth / googleid) at this version; declared
+    // explicitly so Android Studio can resolve AbstractSafeParcelable (FirebaseUser supertype).
+    implementation(libs.play.services.basement)
 
     // Navigation
     implementation(libs.navigation.compose)

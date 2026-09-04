@@ -25,6 +25,7 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
 import com.example.airqualityapp.R
 import com.example.airqualityapp.data.repository.UserProfile
 import com.example.airqualityapp.data.repository.UserRepository
@@ -297,6 +298,8 @@ private suspend fun doGoogleLogin(
         // onSuccess is now called on the main thread (caller's coroutine scope)
         onSuccess(profile.role)
 
+    } catch (e: NoCredentialException) {
+        onError("No Google account was found on this device. Add a Google account in your device settings, then try again.")
     } catch (e: GetCredentialException) {
         onError(e.message ?: "Google login failed")
     } catch (e: FirebaseAuthUserCollisionException) {

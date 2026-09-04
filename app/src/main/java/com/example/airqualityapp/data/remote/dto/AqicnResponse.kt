@@ -9,33 +9,33 @@ import com.squareup.moshi.JsonClass
 
 @JsonClass(generateAdapter = true)
 data class AqicnResponse(
-    @Json(name = "status") val status: String?,
-    @Json(name = "data") val data: AqicnData?
+    @param:Json(name = "status") val status: String?,
+    @param:Json(name = "data") val data: AqicnData?
 )
 
 @JsonClass(generateAdapter = true)
 data class AqicnData(
-    @Json(name = "aqi") val aqi: Int?,
-    @Json(name = "city") val city: AqicnCity?,
-    @Json(name = "iaqi") val iaqi: AqicnIaqi?
+    @param:Json(name = "aqi") val aqi: Int?,
+    @param:Json(name = "city") val city: AqicnCity?,
+    @param:Json(name = "iaqi") val iaqi: AqicnIaqi?
 )
 
 @JsonClass(generateAdapter = true)
 data class AqicnCity(
-    @Json(name = "name") val name: String?
+    @param:Json(name = "name") val name: String?
 )
 
 @JsonClass(generateAdapter = true)
 data class AqicnIaqi(
-    @Json(name = "pm25") val pm25: AqicnValue?,
-    @Json(name = "pm10") val pm10: AqicnValue?,
-    @Json(name = "t") val temperature: AqicnValue?,
-    @Json(name = "h") val humidity: AqicnValue?,
-    @Json(name = "w") val windSpeed: AqicnValue?
+    @param:Json(name = "pm25") val pm25: AqicnValue?,
+    @param:Json(name = "pm10") val pm10: AqicnValue?,
+    @param:Json(name = "t") val temperature: AqicnValue?,
+    @param:Json(name = "h") val humidity: AqicnValue?,
+    @param:Json(name = "w") val windSpeed: AqicnValue?
 )
 
 @JsonClass(generateAdapter = true)
 data class AqicnValue(
-    @Json(name = "v") val value: Double?
+    @param:Json(name = "v") val value: Double?
 )
 

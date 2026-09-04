@@ -5,7 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Feedback
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.People
@@ -68,7 +68,7 @@ fun AdminActivityScreen(onBack: () -> Unit) {
                 title = { Text("Activity Monitor") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -92,7 +92,7 @@ fun AdminActivityScreen(onBack: () -> Unit) {
                 ActivityStat("Joined 7 days", users.count { System.currentTimeMillis() - it.createdAt < 7L * 24 * 3600 * 1000 }.toString())
             }
 
-            TabRow(selectedTabIndex = selectedTab) {
+            SecondaryTabRow(selectedTabIndex = selectedTab) {
                 tabs.forEachIndexed { index, title ->
                     Tab(
                         selected = selectedTab == index,

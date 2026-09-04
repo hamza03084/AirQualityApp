@@ -5,10 +5,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.LocationCity
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
@@ -26,7 +26,9 @@ import androidx.credentials.CredentialManager
 import com.example.airqualityapp.data.repository.UserProfile
 import com.example.airqualityapp.data.repository.UserRepository
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,7 +47,7 @@ fun SettingsScreen(
         }.getOrDefault(emptyList())
     }
     var userProfile by remember { mutableStateOf<UserProfile?>(null) }
-    var alertThreshold by remember { mutableStateOf(150f) }
+    var alertThreshold by remember { mutableFloatStateOf(150f) }
     var notificationsEnabled by remember { mutableStateOf(true) }
     var preferredCity by remember { mutableStateOf("Lahore") }
     var cityMenuExpanded by remember { mutableStateOf(false) }
@@ -68,7 +70,7 @@ fun SettingsScreen(
                 title = { Text("Settings") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -93,12 +95,14 @@ fun SettingsScreen(
                             deleteError = ""
                             scope.launch {
                                 try {
-                                    userRepository.deleteUserAccount()
-                                    isDeleting = false
+                                    withTimeout(20_000) { userRepository.deleteUserAccount() }
                                     onLogout()
+                                } catch (e: TimeoutCancellationException) {
+                                    deleteError = "Deleting your account timed out. Check your connection, then log out, log in again and retry."
                                 } catch (e: Exception) {
-                                    isDeleting = false
                                     deleteError = e.message ?: "Failed to delete account. Please re-login and try again."
+                                } finally {
+                                    isDeleting = false
                                 }
                             }
                         },
@@ -232,7 +236,7 @@ fun SettingsScreen(
                             trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .menuAnchor()
+                                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                         )
                         ExposedDropdownMenu(
                             expanded = cityMenuExpanded,
@@ -366,7 +370,7 @@ fun SettingsScreen(
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Icon(Icons.Default.ExitToApp, contentDescription = null, tint = Color.Red)
+                Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, tint = Color.Red)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Logout", color = Color.Red, fontSize = 16.sp)
             }
