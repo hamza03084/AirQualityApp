@@ -38,6 +38,8 @@ import com.example.airqualityapp.util.AlertNotifier
 import com.example.airqualityapp.util.AqiClassifier
 import com.example.airqualityapp.util.NetworkUtils
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -89,6 +91,9 @@ fun CitizenHomeScreen(
         isRefreshing = true
         errorMessage = ""
         val result = repository.fetchAndSaveAqi(city)
+        // The repository converts cancellation into a failed Result; stop here if this screen
+        // was left while the fetch was running (its predictor is already closed).
+        currentCoroutineContext().ensureActive()
         result.getOrNull()?.let { reading ->
             currentReading = reading
             isOffline = false
@@ -111,7 +116,7 @@ fun CitizenHomeScreen(
             RealtimeDatabaseHelper.writeLiveAqi(liveData)
             RealtimeDatabaseHelper.pushAqiHistory(reading.city, liveData)
 
-            // Alert immediately if the live value crosses the user's threshold
+            // Alert immediately if the live value crosses the admin alert threshold
             AlertNotifier.checkAndNotify(context, reading, profile)
         }
         result.exceptionOrNull()?.let { e ->

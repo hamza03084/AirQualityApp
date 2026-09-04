@@ -30,7 +30,7 @@ private val Context.alertStateStore: DataStore<Preferences> by preferencesDataSt
  * Single place that decides whether an AQI reading must raise an alert.
  *
  * Used by the Home screen (live fetch) and by AqiFetchWorker (background fetch):
- *  1. compare AQI with the user's threshold (fallback: admin default threshold),
+ *  1. compare AQI with the admin-configured alert threshold (config/thresholds),
  *  2. suppress duplicates – one alert per city and category per hour (DataStore),
  *  3. show a local notification if the user has notifications enabled,
  *  4. always record the alert in Realtime Database for the admin audit trail.
@@ -47,7 +47,7 @@ object AlertNotifier {
         reading: AqiReadingEntity,
         profile: UserProfile?
     ): Boolean {
-        val threshold = profile?.alertThreshold ?: AqiConfig.thresholds.alertThreshold
+        val threshold = AqiConfig.thresholds.alertThreshold
         if (reading.aqi <= threshold) return false
 
         val app = context.applicationContext

@@ -16,6 +16,8 @@ data class UserProfile(
     val phone: String = "",
     val role: String = "citizen", // "citizen" or "admin"
     val fcmToken: String = "",
+    // Legacy field kept for existing Firestore documents; alerts now use the admin-wide
+    // threshold from config/thresholds (see AlertNotifier).
     val alertThreshold: Int = 150,
     val notificationsEnabled: Boolean = true,
     val preferredCity: String = "Lahore",
@@ -63,21 +65,13 @@ class UserRepository {
             .await()
     }
 
-    suspend fun updateAlertThreshold(uid: String, threshold: Int) {
-        usersCollection.document(uid)
-            .set(mapOf("alertThreshold" to threshold), SetOptions.merge())
-            .await()
-    }
-
     suspend fun updatePreferences(
         uid: String,
-        threshold: Int,
         notificationsEnabled: Boolean,
         preferredCity: String
     ) {
         usersCollection.document(uid).set(
             mapOf(
-                "alertThreshold" to threshold,
                 "notificationsEnabled" to notificationsEnabled,
                 "preferredCity" to preferredCity
             ),

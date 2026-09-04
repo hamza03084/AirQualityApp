@@ -2,6 +2,7 @@ package com.example.airqualityapp.ml
 
 import android.content.Context
 import android.util.Log
+import com.example.airqualityapp.util.AqiMath
 import org.tensorflow.lite.Interpreter
 import java.io.FileInputStream
 import java.nio.ByteBuffer
@@ -20,6 +21,9 @@ import java.nio.channels.FileChannel
  * without this the model receives out-of-distribution values and predictions are garbage.
  */
 class AqiPredictor(context: Context) {
+
+    @Volatile
+    private var closed = false
 
     private val interpreter: Interpreter? = try {
         val afd = context.applicationContext.assets.openFd(MODEL_FILE)
@@ -43,9 +47,12 @@ class AqiPredictor(context: Context) {
         humidity: Double,
         windSpeed: Double
     ): Int {
-        val tflite = interpreter ?: run {
-            Log.w(TAG, "Model unavailable — returning 0")
-            return 0
+        val tflite = interpreter
+        if (tflite == null || closed) {
+            // Model missing, or the owning screen already disposed us while a fetch was
+            // still in flight. Fall back to the EPA PM2.5 formula instead of crashing.
+            Log.w(TAG, "Model unavailable (closed=$closed) — using PM2.5 formula fallback")
+            return AqiMath.aqiFromPm25(pm25)
         }
 
         val raw = doubleArrayOf(pm25, pm10, temperature, humidity, windSpeed)
@@ -60,7 +67,13 @@ class AqiPredictor(context: Context) {
         val output = ByteBuffer
             .allocateDirect(Float.SIZE_BYTES)
             .order(ByteOrder.nativeOrder())
-        tflite.run(input, output)
+        try {
+            tflite.run(input, output)
+        } catch (e: IllegalStateException) {
+            // Interpreter closed between the check above and run() (screen left mid-fetch).
+            Log.w(TAG, "Interpreter closed during predict — using PM2.5 formula fallback", e)
+            return AqiMath.aqiFromPm25(pm25)
+        }
         output.rewind()
         val aqi = output.float
 
@@ -72,6 +85,7 @@ class AqiPredictor(context: Context) {
     }
 
     fun close() {
+        closed = true
         interpreter?.close()
     }
 

@@ -109,7 +109,7 @@ fun HelpScreen(onBack: () -> Unit) {
                     TutorialStep("2", "View live AQI", "The Home screen auto-fetches AQI for your selected city every 60 minutes.")
                     TutorialStep("3", "Manual prediction", "Tap Manual Input to enter PM2.5, PM10, temperature, humidity and wind speed — the on-device ML model returns an instant AQI even offline.")
                     TutorialStep("4", "Review history", "Open History to browse Today / Week / Month trends with a visual chart.")
-                    TutorialStep("5", "Configure alerts", "In Settings, set your Preferred City and alert threshold. You'll get a push notification when AQI exceeds it.")
+                    TutorialStep("5", "Configure alerts", "In Settings, set your Preferred City and keep notifications on. You'll get a push notification when AQI exceeds the alert threshold set by the administrator.")
                     TutorialStep("6", "Help & feedback", "Read the AQI guide and FAQs below, or send feedback if you hit an issue.")
                 }
             }
@@ -126,7 +126,7 @@ fun HelpScreen(onBack: () -> Unit) {
                 "What are PM2.5 and PM10?" to "PM2.5 refers to fine particulate matter with diameter less than 2.5 micrometers. PM10 refers to particles with diameter less than 10 micrometers. Both can penetrate the lungs and affect health.",
                 "How accurate are the predictions?" to "Our AI model uses machine learning trained on historical data. While predictions provide good estimates, actual conditions may vary. Always check real-time data for critical decisions.",
                 "Does the app work offline?" to "Yes! You can view the last fetched AQI data and submit manual readings offline. Data automatically syncs when you reconnect to the internet.",
-                "How do I get alerts?" to "Alerts are sent automatically when AQI in your area crosses unsafe thresholds. You can configure the threshold in Settings.",
+                "How do I get alerts?" to "Alerts are sent automatically when AQI in your area crosses the alert threshold configured by the administrator. You can turn notifications on or off in Settings.",
                 "Who should be extra cautious?" to "Children, elderly people, pregnant women, and those with respiratory conditions (asthma, COPD) or heart disease are more sensitive to air pollution."
             )
 

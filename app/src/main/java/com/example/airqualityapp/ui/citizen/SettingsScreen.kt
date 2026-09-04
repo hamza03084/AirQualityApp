@@ -25,6 +25,7 @@ import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import com.example.airqualityapp.data.repository.UserProfile
 import com.example.airqualityapp.data.repository.UserRepository
+import com.example.airqualityapp.util.AqiConfig
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
@@ -47,7 +48,6 @@ fun SettingsScreen(
         }.getOrDefault(emptyList())
     }
     var userProfile by remember { mutableStateOf<UserProfile?>(null) }
-    var alertThreshold by remember { mutableFloatStateOf(150f) }
     var notificationsEnabled by remember { mutableStateOf(true) }
     var preferredCity by remember { mutableStateOf("Lahore") }
     var cityMenuExpanded by remember { mutableStateOf(false) }
@@ -59,7 +59,6 @@ fun SettingsScreen(
     LaunchedEffect(Unit) {
         val profile = userRepository.getCurrentUserProfile()
         userProfile = profile
-        alertThreshold = (profile?.alertThreshold ?: 150).toFloat()
         notificationsEnabled = profile?.notificationsEnabled ?: true
         preferredCity = profile?.preferredCity?.takeIf { it.isNotBlank() } ?: "Lahore"
     }
@@ -199,17 +198,12 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    Text("AQI Alert Threshold: ${alertThreshold.toInt()}", fontWeight = FontWeight.Medium)
+                    // Alert threshold is configured by the admin (config/thresholds) and applies to everyone.
+                    Text("AQI Alert Threshold: ${AqiConfig.thresholds.alertThreshold}", fontWeight = FontWeight.Medium)
                     Text(
-                        "You'll receive alerts when AQI exceeds this value",
+                        "Set by the administrator. You'll receive alerts when AQI exceeds this value.",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.Gray
-                    )
-                    Slider(
-                        value = alertThreshold,
-                        onValueChange = { alertThreshold = it },
-                        valueRange = 50f..300f,
-                        steps = 5
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -264,7 +258,6 @@ fun SettingsScreen(
                                 if (uid.isNotEmpty()) {
                                     userRepository.updatePreferences(
                                         uid,
-                                        alertThreshold.toInt(),
                                         notificationsEnabled,
                                         preferredCity
                                     )

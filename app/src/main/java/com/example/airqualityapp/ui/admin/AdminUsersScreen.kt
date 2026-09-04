@@ -86,7 +86,7 @@ fun AdminUsersScreen(onBack: () -> Unit) {
                                     )
                                     Text(user.email, fontSize = 14.sp, color = Color.Gray)
                                     Text(
-                                        "Threshold: ${user.alertThreshold}",
+                                        "City: ${user.preferredCity}",
                                         fontSize = 12.sp,
                                         color = Color.Gray
                                     )

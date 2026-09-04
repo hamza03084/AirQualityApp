@@ -259,7 +259,7 @@ private fun UsersList(users: List<UserProfile>) {
                     }
                     Text(user.email, fontSize = 12.sp, color = Color.DarkGray)
                     Text(
-                        "Joined ${dateFmt.format(Date(user.createdAt))} · city ${user.preferredCity} · threshold ${user.alertThreshold}" +
+                        "Joined ${dateFmt.format(Date(user.createdAt))} · city ${user.preferredCity}" +
                             if (!user.notificationsEnabled) " · notifications off" else "",
                         fontSize = 11.sp,
                         color = Color.Gray
