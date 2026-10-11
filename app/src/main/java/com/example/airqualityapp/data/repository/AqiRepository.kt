@@ -13,10 +13,11 @@ class AqiRepository(private val aqiDao: AqiDao) {
     companion object {
         private const val TAG = "AqiRepository"
 
-        // OpenWeatherMap FREE API key
+        // OpenWeatherMap API key (free tier: 1,000 calls/day).
         // Provides: Air Pollution (PM2.5, PM10, CO, NO2, SO2, O3) + Weather + Geocoding
-        // Free tier: 1,000 calls/day — more than enough
-        const val OPENWEATHER_KEY = "ddb18440bce8b28c52566841ddbe9c21"
+        // Placeholder: replace with your own key from https://home.openweathermap.org/api_keys
+        // to run the app. Never commit a real key to this repository.
+        const val OPENWEATHER_KEY = "YOUR_OPENWEATHERMAP_API_KEY"
     }
 
     /**
